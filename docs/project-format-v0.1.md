@@ -539,3 +539,17 @@ Chart size
 - line dash、marker shape、legend positionの確定enum
 - project metadataにアプリversion、作成者メモ等を含めるか
 - 回帰再現性のため計算engine versionや数値方式を保存する必要性
+
+## 15. Phase 1実装プロファイル
+
+Phase 1 writerは本schemaのうち、単一dataset、単一`scatter` chart、X/Y各1軸、単一series、対称Y Errorを出力する。`trendlines`と`annotations`は空配列とする。他のv0.1機能は後続Phaseで追加する。
+
+- productionのentity IDはブラウザの`crypto.randomUUID()`で生成する。
+- TSVの数値は、前後空白除去後に符号付き10進数または指数表記としてセル全体が一致し、かつ`Number.isFinite`を満たす場合だけJSON numberにする。
+- 空または空白だけのセルは`null`、それ以外の非数値セルは元のstringとして保存する。
+- Phase 1の最大値は256列、10,000行、プロジェクトファイル5 MiBとする。
+- グラフ寸法は幅360〜1,600px、高さ300〜1,200pxの整数とする。
+- 無効なY Errorセルも元データとしてそのまま保存する。描画対象となるX/Y行に`null`、非`number`、非有限値、負値のY Errorが1件でもあれば、読み込み後も派生描画処理で系列全体のエラーバーを無効化し、UIで該当件数を示す。数値の0は有効な誤差値であり、欠損・不正値の代替には使用しない。
+- エラーバーの派生表示可否や代替値は保存しない。Projectにはユーザーが指定したY Error bindingと`enabled`、元のセル値を保存し、読み込み後に同じ検証規則から表示可否を再計算する。
+- 既知の0.1構造を検証した後は元objectをProject State候補として保持するため、未知fieldは読み込み・再保存の過程で維持される。既知fieldの型不正は拒否する。
+- Phase 1にはmigration対象となる旧公開schemaがないため、`schemaVersion`が`0.1`以外のファイルは安全に拒否する。

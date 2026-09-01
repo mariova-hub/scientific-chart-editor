@@ -447,3 +447,14 @@ Google Sheetsから表を貼る
 - 数値精度、回帰ライブラリ利用有無、曲線サンプリング規則
 - 大規模データでの再計算、再描画、保存の性能予算
 - SVG内フォント、PNG倍率、色表現等の出力規則
+
+## 15. Phase 1実装で確定した構成
+
+- Project StateはReactの`useReducer`と明示的なProject Actionで更新し、読み込み成功時だけ`load-project` actionで候補全体を置換する。
+- productionのstable IDは`crypto.randomUUID()`で生成する。TSV parserと初期Project生成には`IdFactory`を注入でき、テストでは決定的IDを使う。
+- 外部JSONはPersistence層の明示的なTypeScript type guardで構造検証した後、Model層の参照・意味検証へ渡す。`JSON.parse(...) as Project`だけの読み込みは禁止する。
+- Plotly basic distributionのimport、Plotly型、Chart Modelからtrace/layoutへの変換、DOM描画、SVG出力は`src/renderer/plotly/`へ隔離する。
+- Data GridはPhase 1ではTSV貼り付け、表表示、X/Y/Y Error列選択だけを担当し、セル値とbindingはDataset / Chart Modelを正規状態とする。
+- Data Binding Modelは同一行のX/Y/Y Errorをzipしてから無効X/Y行を除外し、行対応のずれを防ぐ。Y Errorの妥当性は描画対象となるX/Y行だけで判定する。
+- Y Error列の指定時に`null`、非`number`、非有限値、負値が1件でもあれば、Data Binding Modelは派生状態`showYErrorBars = false`と該当行ID一覧を返す。Renderer Adapterは系列全体の`error_y`を出力しない。散布点、Dataset、Chart Model上のbindingと`enabled`は変更せず、数値の0は有効値として保持する。
+- runtime上限は256列・10,000行・プロジェクト5 MiB、グラフ幅360〜1,600px・高さ300〜1,200pxとする。
