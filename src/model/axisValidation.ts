@@ -5,6 +5,82 @@ import {
 } from './dataBinding'
 import type { ProjectState, ValidationIssue } from './types'
 
+export function validateAxisSettings(
+  project: ProjectState,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+
+  for (const axis of project.chart.axes) {
+    const label = `${axis.dimension.toUpperCase()}軸`
+    const path = `project.chart.axes.${axis.id}`
+    const { minimum, maximum } = axis.scale
+
+    if (minimum !== null && !Number.isFinite(minimum)) {
+      issues.push({
+        code: 'axis.minimum',
+        path: `${path}.scale.minimum`,
+        message: `${label}の最小値は有限数にしてください。`,
+      })
+    }
+    if (maximum !== null && !Number.isFinite(maximum)) {
+      issues.push({
+        code: 'axis.maximum',
+        path: `${path}.scale.maximum`,
+        message: `${label}の最大値は有限数にしてください。`,
+      })
+    }
+    if (minimum !== null && maximum !== null && minimum >= maximum) {
+      issues.push({
+        code: 'axis.range',
+        path: `${path}.scale`,
+        message: `${label}の最小値は最大値より小さくしてください。`,
+      })
+    }
+
+    if (
+      axis.ticks.majorInterval.mode === 'fixed' &&
+      (!Number.isFinite(axis.ticks.majorInterval.step) ||
+        axis.ticks.majorInterval.step <= 0)
+    ) {
+      issues.push({
+        code: 'axis.majorUnit',
+        path: `${path}.ticks.majorInterval`,
+        message: `${label}の主単位は0より大きい有限数にしてください。`,
+      })
+    }
+    if (
+      axis.ticks.minorInterval.mode === 'fixed' &&
+      (!Number.isFinite(axis.ticks.minorInterval.step) ||
+        axis.ticks.minorInterval.step <= 0)
+    ) {
+      issues.push({
+        code: 'axis.minorUnit',
+        path: `${path}.ticks.minorInterval`,
+        message: `${label}の補助単位は0より大きい有限数にしてください。`,
+      })
+    }
+
+    if (axis.scale.type === 'log') {
+      if (minimum !== null && minimum <= 0) {
+        issues.push({
+          code: 'axis.log.minimum',
+          path: `${path}.scale.minimum`,
+          message: `${label}の対数表示では最小値を0より大きくしてください。`,
+        })
+      }
+      if (maximum !== null && maximum <= 0) {
+        issues.push({
+          code: 'axis.log.maximum',
+          path: `${path}.scale.maximum`,
+          message: `${label}の対数表示では最大値を0より大きくしてください。`,
+        })
+      }
+    }
+  }
+
+  return issues
+}
+
 export function validateLogAxes(project: ProjectState): ValidationIssue[] {
   const series = project.chart.series[0]
   if (!series) return []

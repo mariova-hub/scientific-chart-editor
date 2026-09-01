@@ -212,3 +212,10 @@ export function isCategoryAxis(
     ? dimension === 'x'
     : dimension === 'y'
 }
+
+export function isNumericAxis(
+  project: ProjectState,
+  dimension: 'x' | 'y',
+): boolean {
+  return !isCategoryAxis(project, dimension)
+}

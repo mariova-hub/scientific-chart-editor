@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CHART_SIZE_LIMITS, STYLE_LIMITS } from '../../model/limits'
-import { isCategoryAxis } from '../../model/dataBinding'
+import { isNumericAxis } from '../../model/dataBinding'
 import type {
   AxisModel,
   FontStyleModel,
@@ -20,8 +20,10 @@ interface FormatPaneProps {
   issues: ValidationIssue[]
   warnings: ValidationIssue[]
   onSelectionChange: (selection: ChartSelection) => void
-  onAction: (action: ProjectAction) => void
+  onAction: ActionHandler
 }
+
+type ActionHandler = (action: ProjectAction) => string | null
 
 const FONT_FAMILIES = ['Arial', 'Inter', 'Times New Roman', 'Georgia', 'Verdana']
 
@@ -148,7 +150,7 @@ function ChartControls({
   onAction,
 }: {
   project: ProjectState
-  onAction: (action: ProjectAction) => void
+  onAction: ActionHandler
 }) {
   return (
     <>
@@ -263,7 +265,7 @@ function AxisControls({
 }: {
   project: ProjectState
   axis: AxisModel
-  onAction: (action: ProjectAction) => void
+  onAction: ActionHandler
 }) {
   const majorUnit = axis.ticks.majorInterval.mode === 'fixed'
     ? axis.ticks.majorInterval.step
@@ -271,7 +273,8 @@ function AxisControls({
   const minorUnit = axis.ticks.minorInterval.mode === 'fixed'
     ? axis.ticks.minorInterval.step
     : null
-  const categoryAxis = isCategoryAxis(project, axis.dimension)
+  const numericAxis = isNumericAxis(project, axis.dimension)
+  const categoryAxis = !numericAxis
 
   return (
     <>
@@ -293,24 +296,50 @@ function AxisControls({
           </p>
         ) : (
           <>
-        <div className="two-column-controls">
-          <NumberDraftInput
-            label="最小値"
-            value={axis.scale.minimum}
-            allowAuto
-            onCommit={(value) =>
-              onAction({ type: 'set-axis-bound', axisId: axis.id, bound: 'minimum', value })
-            }
-          />
-          <NumberDraftInput
-            label="最大値"
-            value={axis.scale.maximum}
-            allowAuto
-            onCommit={(value) =>
-              onAction({ type: 'set-axis-bound', axisId: axis.id, bound: 'maximum', value })
-            }
-          />
-        </div>
+        <section className="axis-option-section" aria-label="境界値">
+          <h3>境界値</h3>
+          <div className="two-column-controls">
+            <NumberDraftInput
+              label="最小値"
+              value={axis.scale.minimum}
+              allowAuto
+              onCommit={(value) =>
+                onAction({ type: 'set-axis-bound', axisId: axis.id, bound: 'minimum', value })
+              }
+            />
+            <NumberDraftInput
+              label="最大値"
+              value={axis.scale.maximum}
+              allowAuto
+              onCommit={(value) =>
+                onAction({ type: 'set-axis-bound', axisId: axis.id, bound: 'maximum', value })
+              }
+            />
+          </div>
+        </section>
+        <section className="axis-option-section" aria-label="単位">
+          <h3>単位</h3>
+          <div className="two-column-controls">
+            <NumberDraftInput
+              label="主単位"
+              value={majorUnit}
+              allowAuto
+              positive
+              onCommit={(value) =>
+                onAction({ type: 'set-axis-major-unit', axisId: axis.id, value })
+              }
+            />
+            <NumberDraftInput
+              label="補助単位"
+              value={minorUnit}
+              allowAuto
+              positive
+              onCommit={(value) =>
+                onAction({ type: 'set-axis-minor-unit', axisId: axis.id, value })
+              }
+            />
+          </div>
+        </section>
         <label className="control-label">
           <span>スケール</span>
           <select
@@ -340,24 +369,6 @@ function AxisControls({
 
       <fieldset>
         <legend>目盛</legend>
-        {!categoryAxis && <NumberDraftInput
-          label="主目盛間隔"
-          value={majorUnit}
-          allowAuto
-          minimum={Number.EPSILON}
-          onCommit={(value) =>
-            onAction({ type: 'set-axis-major-unit', axisId: axis.id, value })
-          }
-        />}
-        {!categoryAxis && <NumberDraftInput
-          label="補助目盛間隔"
-          value={minorUnit}
-          allowAuto
-          minimum={Number.EPSILON}
-          onCommit={(value) =>
-            onAction({ type: 'set-axis-minor-unit', axisId: axis.id, value })
-          }
-        />}
         <div className="two-column-controls">
           <CheckboxControl
             label="主目盛を表示"
@@ -455,7 +466,7 @@ function SeriesControls({
 }: {
   project: ProjectState
   series: ProjectState['chart']['series'][number]
-  onAction: (action: ProjectAction) => void
+  onAction: ActionHandler
 }) {
   if (project.chart.type === 'bar') {
     return (
@@ -615,7 +626,7 @@ function ErrorBarControls({
   onAction,
 }: {
   series: ProjectState['chart']['series'][number]
-  onAction: (action: ProjectAction) => void
+  onAction: ActionHandler
 }) {
   const style = series.errorBars.y.style
   return (
@@ -660,7 +671,7 @@ function ErrorBarControls({
   )
 }
 
-function LegendControls({ project, onAction }: { project: ProjectState; onAction: (action: ProjectAction) => void }) {
+function LegendControls({ project, onAction }: { project: ProjectState; onAction: ActionHandler }) {
   return (
     <fieldset>
       <legend>凡例</legend>
@@ -687,7 +698,7 @@ function LegendControls({ project, onAction }: { project: ProjectState; onAction
   )
 }
 
-function TitleControls({ project, onAction }: { project: ProjectState; onAction: (action: ProjectAction) => void }) {
+function TitleControls({ project, onAction }: { project: ProjectState; onAction: ActionHandler }) {
   const title = project.chart.title
   return (
     <>
@@ -807,6 +818,7 @@ function NumberDraftInput({
   label,
   value,
   allowAuto = false,
+  positive = false,
   minimum = -Number.MAX_VALUE,
   maximum = Number.MAX_VALUE,
   integer = false,
@@ -815,20 +827,21 @@ function NumberDraftInput({
   label: string
   value: number | null
   allowAuto?: boolean
+  positive?: boolean
   minimum?: number
   maximum?: number
   integer?: boolean
-  onCommit: (value: number | null) => void
+  onCommit: (value: number | null) => string | null | void
 }) {
   const [draft, setDraft] = useState(value === null ? '' : String(value))
-  const [invalid, setInvalid] = useState(false)
+  const [invalidMessage, setInvalidMessage] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
 
   const commit = () => {
     if (allowAuto && draft.trim() === '') {
-      setInvalid(false)
+      const error = onCommit(null)
+      setInvalidMessage(typeof error === 'string' ? error : null)
       setEditing(false)
-      onCommit(null)
       return
     }
     const parsed = Number(draft)
@@ -837,31 +850,43 @@ function NumberDraftInput({
       Number.isFinite(parsed) &&
       parsed >= minimum &&
       parsed <= maximum &&
+      (!positive || parsed > 0) &&
       (!integer || Number.isInteger(parsed))
     if (!valid) {
-      setInvalid(true)
+      setInvalidMessage(
+        positive
+          ? '0より大きい有限数を入力してください。'
+          : '有限数を入力してください。',
+      )
       setDraft(value === null ? '' : String(value))
       setEditing(false)
       return
     }
-    setInvalid(false)
+    const error = onCommit(parsed)
+    setInvalidMessage(typeof error === 'string' ? error : null)
     setEditing(false)
-    onCommit(parsed)
   }
 
   return (
     <label className="control-label">
-      <span>{label}</span>
+      <span className="number-field-heading">
+        <span>{label}</span>
+        {allowAuto && (
+          <span className={`number-mode ${value === null ? 'is-auto' : 'is-fixed'}`}>
+            {value === null ? '自動' : '固定'}
+          </span>
+        )}
+      </span>
       <span className="number-draft-control">
         <input
-          className={invalid ? 'input-invalid' : ''}
+          className={invalidMessage ? 'input-invalid' : ''}
           inputMode="decimal"
           value={editing ? draft : value === null ? '' : String(value)}
           placeholder={allowAuto ? 'Auto' : undefined}
           onChange={(event) => {
             setDraft(event.target.value)
             setEditing(true)
-            setInvalid(false)
+            setInvalidMessage(null)
           }}
           onFocus={() => {
             setDraft(value === null ? '' : String(value))
@@ -871,7 +896,7 @@ function NumberDraftInput({
           onKeyDown={(event) => {
             if (event.key === 'Enter') event.currentTarget.blur()
             if (event.key === 'Escape') {
-              setInvalid(false)
+              setInvalidMessage(null)
               setDraft(value === null ? '' : String(value))
               setEditing(false)
               event.currentTarget.blur()
@@ -879,12 +904,22 @@ function NumberDraftInput({
           }}
         />
         {allowAuto && (
-          <button type="button" className="auto-button" onClick={() => { setDraft(''); setEditing(false); setInvalid(false); onCommit(null) }}>
-            Auto
+          <button
+            type="button"
+            className="auto-button"
+            disabled={value === null}
+            onClick={() => {
+              const error = onCommit(null)
+              setDraft('')
+              setEditing(false)
+              setInvalidMessage(typeof error === 'string' ? error : null)
+            }}
+          >
+            自動に戻す
           </button>
         )}
       </span>
-      {invalid && <small className="field-error">入力値を確認してください。</small>}
+      {invalidMessage && <small className="field-error">{invalidMessage}</small>}
     </label>
   )
 }

@@ -536,3 +536,26 @@ Paste関数は矩形形状、開始座標、最大256列・10,000データ行を
 ### 18.4 Data Grid UI
 
 Gridは空プロジェクトでもA1を初期active cellとして表示する。列記号行、見出し行、データ行、行番号を表示し、active cellを青い枠で示す。paste eventはfocusされたセルから親Gridへbubbleさせ、Ctrl+V / Cmd+Vをブラウザ標準経路で処理する。binding badgeはDatasetとChart Modelから引き続き派生し、部分Paste後に同じstable column IDを指す。
+
+## 19. Phase 3B-2 数値軸設定境界
+
+### 19.1 数値軸判定
+
+`isNumericAxis(project, dimension)`をChart Typeとbar orientationから導出する。scatterはX/Yとも数値軸、vertical barはYだけ、horizontal barはXだけが数値軸である。Format Paneはこの判定で境界値・単位・linear/logを提示し、Rendererは対になる`isCategoryAxis`判定でカテゴリ軸へnumeric rangeやintervalを渡さない。
+
+### 19.2 Draft・候補検証・確定
+
+```text
+NumberDraftInput
+  → blur / Enterで有限numberまたはAuto(null)候補を作る
+  → prepareProjectActionで候補Projectを生成
+  → validateAxisSettings（range・unit・log固定境界）
+  → validateLogAxes（描画データ・誤差下端）
+  → 成功時だけ元のProjectActionをdispatch
+```
+
+入力中の文字列とfield errorはFormat PaneのSession Stateであり、Chart Modelへ保存しない。不正候補ではdispatchせず、入力欄を直前の確定値へ戻して具体的なissueを表示する。検証処理は値をclamp・交換・0置換しない。
+
+### 19.3 Model・Renderer・Persistence
+
+正規状態は既存Axis Modelの`scale.minimum/maximum: number | null`、`ticks.majorInterval: auto | fixed`、`ticks.minorInterval: none | auto | fixed`であり、Plotlyの`range`、`autorange`、`dtick`はAdapter内だけで生成する。Phase 3B-2はschema fieldを追加せず`schemaVersion: "0.1"`を維持する。旧readerで必須だった軸fieldと既存default hydrationを変更しない。

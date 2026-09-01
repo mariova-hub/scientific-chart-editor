@@ -628,3 +628,16 @@ Phase 3B-1はschema構造を変更せず`schemaVersion: "0.1"`を維持する。
 - X/Y/Y ErrorおよびCategory/Value/Error bindingはcolumn ID参照のまま保存し、セル値更新によって付け替えない。
 
 通常PasteとDataset全置換は保存形式上ではどちらも最終Dataset snapshotとなるが、編集時の操作契約は区別する。通常Pasteは既存stable IDを維持する`paste-range`操作であり、全置換/importは利用者が明示した別機能としてのみ将来提供できる。
+
+## 19. Phase 3B-2 数値軸範囲の保存契約
+
+Phase 3B-2はAxis ModelとschemaVersionを変更しない。X/Y軸はそれぞれ独立して次の意味値を保存する。
+
+- `scale.minimum` / `scale.maximum`: Autoは`null`、固定は有限number。両方固定なら`minimum < maximum`。
+- `ticks.majorInterval`: Autoは`{ "mode": "auto" }`、固定は`{ "mode": "fixed", "step": positiveFiniteNumber }`。
+- `ticks.minorInterval`: なし／Auto／固定を既存unionで保存する。Format Paneの「自動に戻す」は`{ "mode": "auto" }`へ確定する。
+- 対数軸の固定minimum / maximumは0より大きいnumberとする。
+
+棒グラフでどちらがカテゴリ軸かは`chart.type`と`chart.bar.orientation`から派生し、Plotlyのaxis typeやrangeを保存しない。カテゴリ軸として表示中もAxis Modelの独立設定は破壊せず保持できるが、UIとRendererは適用しない。scatterやorientation変更で同じdimensionが数値軸へ戻った場合に、その意味設定を再利用できる。
+
+旧Phase 1〜3B-1の`0.1`ファイルは同じaxis fieldを既に持つため追加migrationを必要としない。欠落したPhase 2書式fieldだけを従来どおりdefault hydrationし、明示された不正range・unit・log境界は補正せずatomic load前に拒否する。

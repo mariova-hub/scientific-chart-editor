@@ -29,6 +29,7 @@ import {
   serializeProjectFile,
 } from './persistence/projectFile'
 import { projectReducer, type ProjectAction } from './state/projectReducer'
+import { prepareProjectAction } from './state/projectActionGuard'
 import { defaultSelection } from './state/selection'
 
 type MessageKind = 'success' | 'error' | 'info'
@@ -61,13 +62,13 @@ function App() {
   }
 
   const handleProjectAction = (action: ProjectAction) => {
-    const candidate = projectReducer(project, action)
-    const logIssues = validateLogAxes(candidate)
-    if (logIssues.length > 0) {
-      showMessage(logIssues[0].message, 'error')
-      return
+    const prepared = prepareProjectAction(project, action)
+    if (!prepared.ok) {
+      showMessage(prepared.issue.message, 'error')
+      return prepared.issue.message
     }
     dispatch(action)
+    return null
   }
 
   const handlePasteRange = (start: ActiveCell, source: string) => {
@@ -158,7 +159,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3B-1</span>
+        <span className="phase-badge">v0.1 · Phase 3B-2</span>
       </header>
 
       <Toolbar

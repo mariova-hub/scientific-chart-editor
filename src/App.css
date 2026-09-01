@@ -596,6 +596,46 @@ fieldset {
   min-width: 0;
 }
 
+.number-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.number-mode {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.number-mode.is-auto {
+  color: #526178;
+  background: #edf1f6;
+}
+
+.number-mode.is-fixed {
+  color: #164f91;
+  background: #e4effc;
+}
+
+.axis-option-section {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f9fbfd;
+}
+
+.axis-option-section h3 {
+  margin: 0;
+  color: #34445c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .auto-button {
   min-height: 32px;
   padding: 5px 7px;
@@ -605,6 +645,13 @@ fieldset {
   background: #f6f9fc;
   font-size: 11px;
   font-weight: 700;
+}
+
+.auto-button:disabled {
+  color: #8b97a8;
+  background: #eef1f5;
+  cursor: default;
+  opacity: 0.7;
 }
 
 .input-invalid {

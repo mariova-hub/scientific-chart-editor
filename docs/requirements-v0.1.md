@@ -331,3 +331,12 @@ Phase 3Aは単一系列の棒グラフに限定し、複数系列、grouped / st
 - セルクリックを必須経路とし、Arrow、Tab、Enterによるactive cell移動も提供する。複数セル選択、copy、cut、delete、数式、sort、filterはPhase 3B-1に含めない。
 
 Phase 1の「TSV blockの1行目を常にheaderとしてDataset全体を作る」規則は、旧`parseTsv` importerと過去テストの互換契約としてのみ残す。Phase 3B-1以降の通常Grid Pasteでは、本節の座標ベース規則を優先する。
+
+## 14. Phase 3B-2で確定した数値軸範囲規則
+
+- 散布図ではX軸・Y軸を独立した数値軸とし、それぞれminimum、maximum、major unit、minor unitをAutoまたは固定値として編集できる。
+- 縦棒ではY軸、横棒ではX軸だけを数値値軸として同じ編集UIへ接続する。縦棒のX軸・横棒のY軸はカテゴリ軸であり、数値範囲・単位・対数設定を提示または描画へ適用しない。
+- Autoは空欄の副作用だけにせず、各項目の「自動に戻す」操作として明示する。UIは現在値が「自動」か「固定」かを表示する。
+- 数値draftはblurまたはEnterで確定する。有限数、`minimum < maximum`、主・補助単位が0より大きいことを候補Projectで検証し、不正なら直前のChart Modelを維持して具体的な理由を表示する。値をclampまたは別値へ補正しない。
+- 対数軸の固定minimum / maximumは0より大きくなければならない。既存の描画データ・誤差下端の対数validationも引き続き適用する。
+- 棒グラフ値軸の固定minimumが0以外の場合は設定を受理し、0 baselineの非ブロッキング警告を表示する。

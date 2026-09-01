@@ -151,10 +151,13 @@ describe('project persistence', () => {
       plotBackgroundColor: '#ffffff',
     })
     expect(result.project.chart.axes[0]).toMatchObject({
+      scale: { minimum: null, maximum: null },
       ticks: { majorVisible: true, minorVisible: false },
       line: { visible: true, color: '#4b5563', widthPx: 1 },
       labels: { family: 'Arial', sizePx: 12, color: '#374151' },
     })
+    expect(result.project.chart.axes[0].ticks.majorInterval).toEqual({ mode: 'auto' })
+    expect(result.project.chart.axes[0].ticks.minorInterval).toEqual({ mode: 'none' })
     expect(result.project.chart.series[0].style.marker).toMatchObject({
       fillColor: '#2563eb',
       borderColor: '#2563eb',
