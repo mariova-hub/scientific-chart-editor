@@ -127,6 +127,23 @@ export function validateAxisSettings(
         `${label}のラベル角度は${STYLE_LIMITS.minLabelAngleDeg}〜${STYLE_LIMITS.maxLabelAngleDeg}度にしてください。`,
       ))
     }
+    if (!isInRange(axis.labels.distancePx, STYLE_LIMITS.minAxisTextDistancePx, STYLE_LIMITS.maxAxisTextDistancePx)) {
+      issues.push(styleIssue(
+        'axis.labelDistance',
+        `${path}.labels.distancePx`,
+        `${label}のラベルと軸の距離は${STYLE_LIMITS.minAxisTextDistancePx}〜${STYLE_LIMITS.maxAxisTextDistancePx}pxにしてください。`,
+      ))
+    }
+    if (!['outside', 'inside'].includes(axis.labels.position)) {
+      issues.push(styleIssue('axis.labelPosition', `${path}.labels.position`, `${label}のラベル位置が不正です。`))
+    }
+    if (!isInRange(axis.title.distancePx, STYLE_LIMITS.minAxisTextDistancePx, STYLE_LIMITS.maxAxisTextDistancePx)) {
+      issues.push(styleIssue(
+        'axis.titleDistance',
+        `${path}.title.distancePx`,
+        `${label}のタイトルの距離は${STYLE_LIMITS.minAxisTextDistancePx}〜${STYLE_LIMITS.maxAxisTextDistancePx}pxにしてください。`,
+      ))
+    }
     if (
       axis.numberFormat.kind !== 'auto' &&
       axis.numberFormat.kind !== 'integer' &&

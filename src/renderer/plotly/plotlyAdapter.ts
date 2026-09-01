@@ -22,6 +22,14 @@ export interface PlotlyFigure {
   config: Partial<Config>
 }
 
+export interface PlotlyFigureOptions {
+  transparentBackground?: boolean
+}
+
+type PlotlyAxisWithLabelDistance = Partial<LayoutAxis> & {
+  ticklabelstandoff: number
+}
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
 }
@@ -107,6 +115,7 @@ function toPlotlyAxis(
   return {
     title: {
       text: axis.title.visible ? escapePlotlyText(axis.title.text) : '',
+      standoff: axis.title.distancePx,
       font: {
         family: axis.title.style.family,
         size: axis.title.style.sizePx,
@@ -168,12 +177,17 @@ function toPlotlyAxis(
       weight: axis.labels.bold ? 'bold' : 'normal',
     },
     showticklabels: axis.labels.visible,
+    ticklabelposition: axis.labels.position,
+    ticklabelstandoff: axis.labels.distancePx,
     tickangle: axis.labels.angleDeg,
     automargin: autoMargin,
-  }
+  } as PlotlyAxisWithLabelDistance
 }
 
-export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
+export function toPlotlyFigure(
+  project: ProjectState,
+  options: PlotlyFigureOptions = {},
+): PlotlyFigure {
   const series = project.chart.series[0]
   const xAxis = project.chart.axes.find((axis) => axis.dimension === 'x')
   const yAxis = project.chart.axes.find((axis) => axis.dimension === 'y')
@@ -367,8 +381,12 @@ export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
             } as Partial<Shape>,
           ]
         : [],
-      paper_bgcolor: project.chart.style.backgroundColor,
-      plot_bgcolor: project.chart.style.plotBackgroundColor,
+      paper_bgcolor: options.transparentBackground
+        ? 'rgba(0,0,0,0)'
+        : project.chart.style.backgroundColor,
+      plot_bgcolor: options.transparentBackground
+        ? 'rgba(0,0,0,0)'
+        : project.chart.style.plotBackgroundColor,
       font: {
         family: 'Inter, ui-sans-serif, system-ui, sans-serif',
         color: '#172033',

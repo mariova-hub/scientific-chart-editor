@@ -129,6 +129,36 @@ h2 {
   background: #dfe5ed;
 }
 
+.export-controls {
+  display: flex;
+  align-items: end;
+  gap: 7px;
+  min-width: 0;
+}
+
+.export-controls-title {
+  align-self: center;
+  color: #34445c;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.export-controls label {
+  display: grid;
+  gap: 2px;
+  color: #66758b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.export-controls select {
+  min-width: 92px;
+  min-height: 34px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
 .toolbar-message {
   min-width: 0;
   margin-left: auto;
@@ -943,6 +973,11 @@ legend {
     width: 100%;
     margin-left: 0;
     text-align: left;
+  }
+
+  .export-controls {
+    flex-wrap: wrap;
+    width: 100%;
   }
 
   .workspace-grid,

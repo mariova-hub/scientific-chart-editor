@@ -6,18 +6,19 @@ import {
   useState,
 } from 'react'
 import type { ProjectState } from '../../model/types'
+import type { ChartExportOptions } from '../../renderer/exportOptions'
 import {
   calculateResizedChartSize,
   type ChartSize,
 } from '../../model/resize'
 import {
-  exportPlotlySvg,
+  exportPlotlyImage,
   purgePlotlyChart,
   renderPlotlyChart,
 } from '../../renderer/plotly/plotlyRenderer'
 
 export interface ChartCanvasHandle {
-  exportSvg: () => Promise<void>
+  exportImage: (options: ChartExportOptions) => Promise<void>
 }
 
 interface ChartCanvasProps {
@@ -82,11 +83,11 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
     }, [onResizeComplete])
 
     useImperativeHandle(ref, () => ({
-      exportSvg: async () => {
+      exportImage: async (options) => {
         if (!chartElementRef.current) throw new Error('グラフが未描画です。')
-        await exportPlotlySvg(chartElementRef.current)
+        await exportPlotlyImage(project, options)
       },
-    }))
+    }), [project])
 
     useEffect(() => {
       const element = chartElementRef.current

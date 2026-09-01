@@ -516,6 +516,39 @@ function AxisControls({
           }
         />
         <label className="control-label">
+          <span>ラベルの位置</span>
+          <select
+            value={axis.labels.position}
+            onChange={(event) =>
+              onAction({
+                type: 'set-axis-label-style',
+                axisId: axis.id,
+                field: 'position',
+                value: event.target.value,
+              })
+            }
+          >
+            <option value="outside">軸の外側</option>
+            <option value="inside">軸の内側</option>
+          </select>
+        </label>
+        <NumberDraftInput
+          label="ラベルと軸の距離 (px)"
+          value={axis.labels.distancePx}
+          minimum={STYLE_LIMITS.minAxisTextDistancePx}
+          maximum={STYLE_LIMITS.maxAxisTextDistancePx}
+          onCommit={(value) => {
+            if (value !== null) {
+              onAction({
+                type: 'set-axis-label-style',
+                axisId: axis.id,
+                field: 'distancePx',
+                value,
+              })
+            }
+          }}
+        />
+        <label className="control-label">
           <span>フォント</span>
           <select
             value={axis.labels.family}
@@ -693,6 +726,21 @@ function AxisControls({
             {FONT_FAMILIES.map((family) => <option value={family} key={family}>{family}</option>)}
           </select>
         </label>
+        <NumberDraftInput
+          label="タイトルの距離 (px)"
+          value={axis.title.distancePx}
+          minimum={STYLE_LIMITS.minAxisTextDistancePx}
+          maximum={STYLE_LIMITS.maxAxisTextDistancePx}
+          onCommit={(value) => {
+            if (value !== null) {
+              onAction({
+                type: 'set-axis-title-distance',
+                axisId: axis.id,
+                value,
+              })
+            }
+          }}
+        />
         <NumberDraftInput
           label="文字サイズ (pt相当)"
           value={axis.title.style.sizePx}

@@ -6,6 +6,7 @@ import type {
   ProjectState,
 } from './types'
 import {
+  DEFAULT_AXIS_TITLE_DISTANCE_PX,
   defaultAxisLabels,
   defaultAxisLine,
   defaultAxisTickStyle,
@@ -38,6 +39,7 @@ function createAxis(
     title: {
       visible: true,
       text: dimension === 'x' ? 'X' : 'Y',
+      distancePx: DEFAULT_AXIS_TITLE_DISTANCE_PX,
       style: defaultAxisTitleStyle(),
     },
     scale: {

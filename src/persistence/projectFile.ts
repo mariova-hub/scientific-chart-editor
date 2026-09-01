@@ -1,6 +1,7 @@
 import { DATA_LIMITS } from '../model/limits'
 import { validateProjectSemantics } from '../model/projectValidation'
 import {
+  DEFAULT_AXIS_TITLE_DISTANCE_PX,
   defaultAxisLabels,
   defaultAxisLine,
   defaultAxisTickStyle,
@@ -67,6 +68,10 @@ function hydrateProjectV01(value: unknown): unknown {
         const title = isRecord(axis.title)
           ? {
               ...axis.title,
+              distancePx: valueOrDefault(
+                axis.title.distancePx,
+                DEFAULT_AXIS_TITLE_DISTANCE_PX,
+              ),
               style: valueOrDefault(axis.title.style, defaultAxisTitleStyle()),
             }
           : axis.title
@@ -330,7 +335,10 @@ function isAxisLabels(value: unknown): value is AxisModel['labels'] {
     isFontStyle(value, true) &&
     typeof value.visible === 'boolean' &&
     typeof value.angleDeg === 'number' &&
-    Number.isFinite(value.angleDeg)
+    Number.isFinite(value.angleDeg) &&
+    (value.position === 'outside' || value.position === 'inside') &&
+    typeof value.distancePx === 'number' &&
+    Number.isFinite(value.distancePx)
   )
 }
 
@@ -343,6 +351,8 @@ function isAxis(value: unknown): value is AxisModel {
     !isRecord(value.title) ||
     typeof value.title.visible !== 'boolean' ||
     typeof value.title.text !== 'string' ||
+    typeof value.title.distancePx !== 'number' ||
+    !Number.isFinite(value.title.distancePx) ||
     !isFontStyle(value.title.style, true) ||
     !isRecord(value.scale) ||
     (value.scale.type !== 'linear' && value.scale.type !== 'log') ||

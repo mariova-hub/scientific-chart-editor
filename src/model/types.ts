@@ -32,6 +32,7 @@ export type AxisDimension = 'x' | 'y'
 export type AxisPosition = 'bottom' | 'left'
 export type AxisScaleType = 'linear' | 'log'
 export type TickDirection = 'inside' | 'outside' | 'cross' | 'none'
+export type TickLabelPosition = 'outside' | 'inside'
 export type MarkerShape =
   | 'circle'
   | 'square'
@@ -103,6 +104,7 @@ export interface AxisModel {
   title: {
     visible: boolean
     text: string
+    distancePx: number
     style: FontStyleModel & { bold: boolean }
   }
   scale: {
@@ -132,6 +134,8 @@ export interface AxisModel {
     visible: boolean
     bold: boolean
     angleDeg: number
+    position: TickLabelPosition
+    distancePx: number
   }
   numberFormat: AxisNumberFormat
   extensions?: Record<string, unknown>

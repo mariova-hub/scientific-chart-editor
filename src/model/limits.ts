@@ -28,6 +28,8 @@ export const STYLE_LIMITS = {
   maxTickLineWidthPx: 12,
   minLabelAngleDeg: -180,
   maxLabelAngleDeg: 180,
+  minAxisTextDistancePx: 0,
+  maxAxisTextDistancePx: 100,
   minDecimalPlaces: 0,
   maxDecimalPlaces: 10,
   minMarginPx: 0,

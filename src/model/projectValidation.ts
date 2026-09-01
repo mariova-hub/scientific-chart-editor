@@ -176,6 +176,15 @@ function validateAxis(axis: AxisModel, path: string): ValidationIssue[] {
   if (!inRange(axis.labels.angleDeg, STYLE_LIMITS.minLabelAngleDeg, STYLE_LIMITS.maxLabelAngleDeg)) {
     issues.push(issue('style.angle', `${path}.labels.angleDeg`, '目盛ラベルの角度が許容範囲外です。'))
   }
+  if (!['outside', 'inside'].includes(axis.labels.position)) {
+    issues.push(issue('style.labelPosition', `${path}.labels.position`, '目盛ラベルの位置が不正です。'))
+  }
+  if (!inRange(axis.labels.distancePx, STYLE_LIMITS.minAxisTextDistancePx, STYLE_LIMITS.maxAxisTextDistancePx)) {
+    issues.push(issue('style.labelDistance', `${path}.labels.distancePx`, 'ラベルと軸の距離が許容範囲外です。'))
+  }
+  if (!inRange(axis.title.distancePx, STYLE_LIMITS.minAxisTextDistancePx, STYLE_LIMITS.maxAxisTextDistancePx)) {
+    issues.push(issue('style.titleDistance', `${path}.title.distancePx`, '軸タイトルの距離が許容範囲外です。'))
+  }
   if (
     axis.numberFormat.kind !== 'auto' &&
     axis.numberFormat.kind !== 'integer' &&

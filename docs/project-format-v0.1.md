@@ -752,3 +752,36 @@ Phase 3Cも`schemaVersion: "0.1"`を維持し、Scientific Chart Editorの意味
 - `cross` tick enumは既存ファイルのround-trip互換のため有効な既知値として残すが、新規UIから生成しない。派生したPlotly互換表現は保存しない。
 
 Phase 3C以前の`0.1`ファイルでは、欠落したaxis title style、tick length / width、label visibility / bold / angle、number format、major/minor grid style、chart plotAreaを欠落時だけdefault hydrationする。明示fieldはruntime structure validationとsemantic validationを通し、成功後に一括反映する。Selection、入力draft、互換警告、Plotly figure、SVG文字列は保存対象外である。
+
+## 24. Phase 3D 軸文字配置とExport Optionの保存契約
+
+Phase 3Dも`schemaVersion: "0.1"`を維持し、軸文字配置をrenderer-neutralな意味値として保存する。
+
+```json
+{
+  "axes": [{
+    "title": {
+      "visible": true,
+      "text": "吸光度",
+      "distancePx": 20,
+      "style": { "family": "Arial", "sizePx": 14, "color": "#172033", "bold": false }
+    },
+    "labels": {
+      "visible": true,
+      "family": "Arial",
+      "sizePx": 12,
+      "color": "#374151",
+      "bold": false,
+      "angleDeg": 0,
+      "position": "outside",
+      "distancePx": 8
+    }
+  }]
+}
+```
+
+- `labels.position`は`outside | inside`。Plotlyの`ticklabelposition`文字列としてではなく、軸の外側／内側というアプリの意味enumとして扱う。
+- `labels.distancePx`は目盛ラベルと軸の距離、`title.distancePx`は軸タイトルと目盛ラベルの距離であり、X/Y軸ごとに独立保存する。いずれも0〜100の有限numberとする。
+- Phase 1〜3Cファイルでfieldが欠落する場合だけ、label positionを`outside`、label distanceを`0`、title distanceを`8`へdefault hydrationする。明示された不正enum、非有限値、負値、上限超過は補正せずatomic load前に拒否する。
+- PNG / SVG出力形式、PNG scale（1 / 2 / 3）、現在背景／透明の選択は成果物生成時のSession / Export Optionであり保存しない。PNG binary、SVG文字列、Plotly export option、一時透明背景もProject JSONへ含めない。
+- PNG出力は保存されたchart sizeを論理寸法として読むだけであり、2× / 3×出力後も`chart.size`は同一でなければならない。透明出力後も`chart.style.backgroundColor`と`plotBackgroundColor`は同一でなければならない。

@@ -42,6 +42,7 @@ export type ProjectAction =
   | { type: 'set-bar-gap'; value: number }
   | { type: 'set-axis-title'; axisId: string; title: string }
   | { type: 'set-axis-title-visible'; axisId: string; visible: boolean }
+  | { type: 'set-axis-title-distance'; axisId: string; value: number }
   | {
       type: 'set-axis-title-style'
       axisId: string
@@ -544,6 +545,9 @@ export function projectReducer(
     }
     if (action.type === 'set-axis-title-visible') {
       return { ...axis, title: { ...axis.title, visible: action.visible } }
+    }
+    if (action.type === 'set-axis-title-distance') {
+      return { ...axis, title: { ...axis.title, distancePx: action.value } }
     }
     if (action.type === 'set-axis-title-style') {
       return {

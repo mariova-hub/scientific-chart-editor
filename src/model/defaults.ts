@@ -20,8 +20,12 @@ export function defaultAxisLabels(): AxisModel['labels'] {
     visible: true,
     bold: false,
     angleDeg: 0,
+    position: 'outside',
+    distancePx: 0,
   }
 }
+
+export const DEFAULT_AXIS_TITLE_DISTANCE_PX = 8
 
 export function defaultAxisTitleStyle() {
   return {

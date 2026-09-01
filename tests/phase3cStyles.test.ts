@@ -174,6 +174,7 @@ describe('Phase 3C axis and plot-area styles', () => {
     axis.title = {
       visible: true,
       text: 'X title',
+      distancePx: 8,
       style: { family: 'Georgia', sizePx: 18, color: '#334455', bold: true },
     }
     project.chart.plotArea = {

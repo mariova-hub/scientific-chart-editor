@@ -698,3 +698,47 @@ Plotly Adapterだけが、number formatからd3 tickformat、grid styleからdas
 ### 23.4 Default hydration
 
 Phase 3C以前の`0.1`ファイルで新fieldが欠落する場合、Persistence境界がAxis title style、tick length / width、label visibility / bold / angle、number format、major/minor grid style、plot border / marginを安全なdefaultで補う。明示された不正enum、型、範囲、色は補正せず、semantic validation完了後だけatomic loadする。
+
+## 24. Phase 3D Export・軸文字配置境界
+
+### 24.1 Axis Model拡張
+
+Axisの目盛ラベルと軸タイトルを別責務のまま拡張する。
+
+```text
+Axis.labels
+  ├─ visible / font / bold / angleDeg
+  ├─ position: outside | inside
+  └─ distancePx
+
+Axis.title
+  ├─ visible / text / font style
+  └─ distancePx
+```
+
+`position`と`distancePx`はScientific Chart Editorの意味値であり、Plotlyのproperty名をModelへ採用しない。ProjectActionはlabel style更新またはaxis title distance更新を1操作としてReducerへ渡す。0〜100pxの有限値を候補Projectで検証し、失敗時は直前状態を維持する。
+
+### 24.2 Renderer Adapter mapping
+
+Plotly Adapterはlabel positionを`ticklabelposition`、label distanceを`ticklabelstandoff`、title distanceを`title.standoff`へ変換する。カテゴリ軸と数値軸で同じ文字配置契約を使用する。`toPlotlyFigure`は通常描画と画像出力の共通入口であり、透明背景の一時overrideだけを任意optionとして受け取る。
+
+Auto Marginではaxis `automargin`を有効にし、距離を含めた描画余白をRendererへ委ねる。Manual Marginでは`automargin`を無効にして保存済み上下左右値を優先し、AdapterがChart Modelを補正しない。
+
+### 24.3 Export境界
+
+```text
+Toolbar Export Option（Session State）
+  ├─ format: png | svg
+  ├─ pngScale: 1 | 2 | 3
+  └─ background: current | transparent
+                ↓
+prepareImageExport（pure conversion）
+                ↓
+Chart Model → Plotly Adapter → export専用一時描画
+                ↓
+Plotly Renderer → downloadImage
+```
+
+RendererはChart Modelの論理width / heightとexport scaleを別値として扱う。透明背景はexport専用Figureにだけ設定する。画面上のPlotly instanceやChart Modelを一時的に書き換えず、完了・失敗のどちらでも一時DOMをpurgeして破棄する。PNG / SVGは同じAdapterを通るため、データ、軸、誤差範囲、ラベル、タイトル、grid、marginの意味配置を共有する。
+
+Export Option、進行状態、選択形式はProject StateやSelection Modelへ混入させない。将来JPEG / PDF等を追加する場合も、Project ModelではなくこのRenderer-neutralなexport境界を拡張する。

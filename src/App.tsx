@@ -32,6 +32,10 @@ import {
 import { projectReducer, type ProjectAction } from './state/projectReducer'
 import { prepareProjectAction } from './state/projectActionGuard'
 import { defaultSelection } from './state/selection'
+import {
+  DEFAULT_CHART_EXPORT_OPTIONS,
+  type ChartExportOptions,
+} from './renderer/exportOptions'
 
 type MessageKind = 'success' | 'error' | 'info'
 
@@ -45,6 +49,9 @@ function App() {
   const [messageKind, setMessageKind] = useState<MessageKind>('info')
   const [selection, setSelection] = useState(() => defaultSelection(project))
   const [dataPaneWidth, setDataPaneWidth] = useState(360)
+  const [exportOptions, setExportOptions] = useState<ChartExportOptions>(
+    DEFAULT_CHART_EXPORT_OPTIONS,
+  )
   const chartRef = useRef<ChartCanvasHandle>(null)
   const issues = useMemo(() => validateProjectSemantics(project), [project])
   const resolvedCount = useMemo(
@@ -159,12 +166,12 @@ function App() {
     }
   }
 
-  const handleExportSvg = async () => {
+  const handleExport = async () => {
     try {
-      await chartRef.current?.exportSvg()
-      showMessage('SVGを出力しました。', 'success')
+      await chartRef.current?.exportImage(exportOptions)
+      showMessage(`${exportOptions.format.toUpperCase()}を出力しました。`, 'success')
     } catch {
-      showMessage('SVGを出力できませんでした。', 'error')
+      showMessage(`${exportOptions.format.toUpperCase()}を出力できませんでした。`, 'error')
     }
   }
 
@@ -180,7 +187,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3C</span>
+        <span className="phase-badge">v0.1 · Phase 3D</span>
       </header>
 
       <Toolbar
@@ -190,7 +197,9 @@ function App() {
         messageKind={messageKind}
         onSave={handleSave}
         onLoad={handleLoad}
-        onExportSvg={handleExportSvg}
+        exportOptions={exportOptions}
+        onExportOptionsChange={setExportOptions}
+        onExport={handleExport}
       />
 
       <main

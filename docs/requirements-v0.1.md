@@ -395,3 +395,16 @@ Phase 3B-5ではData Grid範囲選択、row label列の詳細設定、Scatter ro
 - Phase 3Cの全意味書式は独自Project JSONへ保存し、同じRenderer Adapter経路を使う画面描画とSVG出力の双方へ反映する。Selection、draft、警告は保存しない。
 
 Phase 3Cは軸・目盛・プロット領域の書式完成に限定し、複数系列、回帰、データラベル、PNG、テーマへは横展開しない。
+
+## 19. Phase 3Dで確定した画像出力・軸文字配置規則
+
+- 画像出力はPNG / SVGを明示選択できる。PNGはChart Modelの`widthPx` / `heightPx`を論理サイズとし、標準・2×・3×の一時的なexport scaleで実ピクセル寸法を変更する。出力によってChart Modelの寸法を変更しない。
+- PNG背景は「現在の背景」または「透明」を選べる。透明指定はexport用Figureのpaper / plot背景にだけ適用し、保存済みグラフ背景を変更しない。SVGは従来どおり現在の背景を使用する。
+- PNG scale、PNG背景、選択中の出力形式はSession / Export OptionでありProjectへ保存しない。出力ファイル名はOSで安全な`scientific-chart.png` / `scientific-chart.svg`とする。
+- 目盛ラベルはPhase 3C書式に加え、軸の外側／内側と、軸からの距離をX/Y軸ごとに保持する。実際の描画と一致する`outside | inside`だけをUIへ提示する。
+- 軸タイトルは目盛ラベルとは別Modelであり、表示・文字・font書式に加え、目盛ラベルからの距離をX/Y軸ごとに保持する。
+- ラベル距離とタイトル距離は0〜100pxの有限numberとする。負値や範囲外値は候補Chart Modelへ反映せず理由を表示し、黙って補正しない。軸方向への平行シフトと軸タイトルの任意2次元ドラッグはPhase 3Dの対象外である。
+- Auto MarginではRendererの自動余白を有効にして距離増加による文字切れを抑える。Manual Marginでは利用者の保存値を優先し、距離設定のためにmarginを勝手に変更しない。
+- 目盛ラベル位置・距離と軸タイトル距離は画面、PNG、SVGへ同じAdapter mappingで反映し、保存・再読込後に復元する。
+
+Phase 3DはPNG出力と軸文字配置の仕上げに限定し、JPEG / PDF、注釈、データラベル、複数系列、回帰へは横展開しない。

@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import type { ChartExportOptions } from '../../renderer/exportOptions'
 
 interface ToolbarProps {
   canSave: boolean
@@ -7,7 +8,9 @@ interface ToolbarProps {
   messageKind: 'success' | 'error' | 'info'
   onSave: () => void
   onLoad: (file: File) => void
-  onExportSvg: () => void
+  exportOptions: ChartExportOptions
+  onExportOptionsChange: (options: ChartExportOptions) => void
+  onExport: () => void
 }
 
 export function Toolbar({
@@ -17,7 +20,9 @@ export function Toolbar({
   messageKind,
   onSave,
   onLoad,
-  onExportSvg,
+  exportOptions,
+  onExportOptionsChange,
+  onExport,
 }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -50,14 +55,70 @@ export function Toolbar({
         }}
       />
       <span className="toolbar-divider" />
-      <button
-        type="button"
-        className="button button-secondary"
-        disabled={!canExport}
-        onClick={onExportSvg}
-      >
-        SVG出力
-      </button>
+      <section className="export-controls" aria-label="画像として保存">
+        <span className="export-controls-title">画像として保存</span>
+        <label>
+          <span>形式</span>
+          <select
+            aria-label="出力形式"
+            value={exportOptions.format}
+            onChange={(event) =>
+              onExportOptionsChange({
+                ...exportOptions,
+                format: event.target.value as ChartExportOptions['format'],
+              })
+            }
+          >
+            <option value="png">PNG</option>
+            <option value="svg">SVG</option>
+          </select>
+        </label>
+        {exportOptions.format === 'png' && (
+          <>
+            <label>
+              <span>PNG解像度</span>
+              <select
+                aria-label="PNG解像度"
+                value={exportOptions.pngScale}
+                onChange={(event) =>
+                  onExportOptionsChange({
+                    ...exportOptions,
+                    pngScale: Number(event.target.value) as ChartExportOptions['pngScale'],
+                  })
+                }
+              >
+                <option value={1}>標準 (1×)</option>
+                <option value={2}>2×</option>
+                <option value={3}>3×</option>
+              </select>
+            </label>
+            <label>
+              <span>背景</span>
+              <select
+                aria-label="PNG背景"
+                value={exportOptions.background}
+                onChange={(event) =>
+                  onExportOptionsChange({
+                    ...exportOptions,
+                    background: event.target.value as ChartExportOptions['background'],
+                  })
+                }
+              >
+                <option value="current">現在の背景</option>
+                <option value="transparent">透明</option>
+              </select>
+            </label>
+          </>
+        )}
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={!canExport}
+          onClick={onExport}
+        >
+          {exportOptions.format.toUpperCase()}を保存
+        </button>
+      </section>
       <div
         className={`toolbar-message message-${messageKind}`}
         role="status"
