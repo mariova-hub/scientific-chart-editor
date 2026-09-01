@@ -588,3 +588,51 @@ EscapeはSession Stateだけを破棄するため、元Datasetを復元する処
 非編集中はArrow / TabをActive Cell移動、Enter / F2を編集開始、Delete / Backspaceを単一セル消去として扱う。編集中はinputへArrow / Backspaceを委ね、Enter / Shift+EnterとTab / Shift+Tabを確定・移動、Escapeをcancelとして扱う。editorのpaste eventはGridへ伝播させず通常のテキスト挿入とし、非編集中のGrid paste eventだけをPhase 3B-1のRectangular Paste pipelineへ渡す。
 
 この分離により、直接編集、消去、矩形Pasteはいずれも操作単位のReducer actionになり、将来のhistory層はDOMイベントやセルごとの中間変更を記録せず確定snapshotだけを扱える。
+
+## 21. Phase 3B-4 Data Orientationとrow binding境界
+
+### 21.1 独立する3つの方向
+
+Chart Modelの`dataOrientation: columns | rows`は、Datasetをどちらの一次元方向で読むかを表す。`chart.bar.orientation: vertical | horizontal`は描画方向、散布図`bindings.x/y`は変数の役割であり、相互に代用しない。行／列切替ではDataset Model、セル位置、row / column IDを変更せず、Renderer Adapter入力を生成するresolverだけを切り替える。
+
+### 21.2 BarRowBindings
+
+単一系列のrows modeは次のrenderer-neutralな参照を持つ。
+
+```text
+BarRowBindings
+  ├─ datasetId
+  ├─ categoryStartColumnId
+  ├─ categoryEndColumnId
+  ├─ valueRowId
+  ├─ errorRowId?
+  └─ labelColumnId?
+```
+
+カテゴリ列範囲はDatasetのcolumn配列順で両端を含む。値・誤差は同じカテゴリcolumn IDをkeyとして各rowのcellを読むため、無効Valueを除外しても位置対応を詰めない。解決済みBarPointのsource IDはcolumns modeではrow ID、rows modeではcategory column IDとなり、Plotly trace indexを意味参照に使わない。
+
+`labelColumnId`は行選択UIだけの名称解決に使い、グラフ値へ混入させない。Phase 3B-4ではrowsへ初めて切り替える際に先頭column IDをlabel候補として補うが、Category / Value / Errorは推測しない。
+
+### 21.3 Resolver・Renderer・検証
+
+```text
+Chart.dataOrientation
+  ├─ columns → barBindingsを同一row位置でresolve
+  └─ rows    → barRowBindingsを同一column位置でresolve
+                         ↓
+                 ResolvedBarSeries
+                         ↓
+       bar.orientation vertical / horizontal
+                         ↓
+                 Plotly Adapter
+```
+
+row resolverはカテゴリ範囲、value row、任意error rowをstable IDで解決する。無効Valueはそのcategory column IDだけを除外する。描画対象位置の無効Errorは件数を保持して全error表示を止めるが、DatasetもBarPointも修正しない。縦／横変換は従来どおりAdapterだけがY Error / X Errorへ対応させる。
+
+Persistence validationはdata orientation enum、dataset / row / column参照、カテゴリ範囲順を検証する。欠落・削除済みIDまたは逆順範囲を含む外部ファイルはatomic load前に拒否する。セルが欠落する場合はnullとして派生Value / Error validationへ渡し、列を詰めて長さを合わせない。
+
+### 21.4 UIと切替
+
+Data Paneは「データ系列の方向」の列／行radioを持つ。columns modeは列選択、rows modeはカテゴリ開始・終了列、行ラベル列、値の行、誤差の行を提示する。Gridはカテゴリcolumn headerに`CATEGORY`、value row headerに`VALUE`、error row headerに`ERR`の文字badgeを表示する。
+
+`set-data-orientation` actionはinactive側bindingを破棄しない一方、columnsとrowsの間で意味bindingを自動変換しない。Scatterではrows選択を無効化し、rows状態からScatterへ変更するactionは`dataOrientation`だけをcolumnsへ戻す。この構造により、Dataset転置や誤った自動割当を行わず、将来Scatter rows resolverを同じChart fieldへ追加できる。

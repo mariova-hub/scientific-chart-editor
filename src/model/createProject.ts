@@ -9,6 +9,7 @@ import {
   defaultAxisLabels,
   defaultAxisLine,
   defaultBarOptions,
+  defaultBarRowBindings,
   defaultBarStyle,
   defaultChartStyle,
   defaultErrorBarStyle,
@@ -76,6 +77,7 @@ export function createEmptyProject(
     chart: {
       id: idFactory(),
       type: 'scatter',
+      dataOrientation: 'columns',
       bar: defaultBarOptions(),
       title: {
         visible: true,
@@ -93,6 +95,7 @@ export function createEmptyProject(
           visible: true,
           bindings: { x: null, y: null },
           barBindings: { category: null, value: null, error: null },
+          barRowBindings: defaultBarRowBindings(),
           axisIds: { x: xAxis.id, y: yAxis.id },
           style: {
             color: '#2563eb',
@@ -151,6 +154,7 @@ export function projectWithDataset(
             value: yColumn ? createDataRange(dataset.id, yColumn.id) : null,
             error: null,
           },
+          barRowBindings: defaultBarRowBindings(),
           errorBars: {
             ...series.errorBars,
             y: { ...series.errorBars.y, enabled: false, value: null },

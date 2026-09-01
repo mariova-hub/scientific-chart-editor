@@ -17,10 +17,11 @@ import {
   type ActiveCell,
 } from '../../data/grid/pasteRange'
 import {
+  formatDataRowLabel,
   resolveBarSeries,
   resolveScatterSeries,
 } from '../../model/dataBinding'
-import type { ProjectState } from '../../model/types'
+import type { DataOrientation, ProjectState } from '../../model/types'
 
 type BindingRole =
   | 'x'
@@ -29,6 +30,7 @@ type BindingRole =
   | 'category'
   | 'value'
   | 'barError'
+type RowBindingRole = 'value' | 'error'
 
 interface DataGridProps {
   project: ProjectState
@@ -36,6 +38,13 @@ interface DataGridProps {
   onEditCell: (cell: ActiveCell, draft: string) => string | null
   onClearCell: (cell: ActiveCell) => string | null
   onSelectColumn: (role: BindingRole, columnId: string | null) => void
+  onDataOrientationChange: (value: DataOrientation) => void
+  onSelectRowCategoryBound: (
+    bound: 'start' | 'end',
+    columnId: string | null,
+  ) => void
+  onSelectRowBinding: (role: RowBindingRole, rowId: string | null) => void
+  onSelectRowLabelColumn: (columnId: string | null) => void
 }
 
 const MAX_VISIBLE_DATA_ROWS = 100
@@ -63,6 +72,10 @@ export function DataGrid({
   onEditCell,
   onClearCell,
   onSelectColumn,
+  onDataOrientationChange,
+  onSelectRowCategoryBound,
+  onSelectRowBinding,
+  onSelectRowLabelColumn,
 }: DataGridProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>({
     rowIndex: 0,
@@ -94,6 +107,7 @@ export function DataGrid({
   )
 
   const badgesByColumn = new Map<string, string[]>()
+  const badgesByRow = new Map<string, string[]>()
   const addBadge = (columnId: string | undefined, label: string) => {
     if (!columnId) return
     badgesByColumn.set(columnId, [
@@ -101,10 +115,31 @@ export function DataGrid({
       label,
     ])
   }
+  const addRowBadge = (rowId: string | undefined | null, label: string) => {
+    if (!rowId) return
+    badgesByRow.set(rowId, [...(badgesByRow.get(rowId) ?? []), label])
+  }
   if (project.chart.type === 'bar') {
-    addBadge(series.barBindings.category?.columnId, 'CATEGORY')
-    addBadge(series.barBindings.value?.columnId, 'VALUE')
-    addBadge(series.barBindings.error?.columnId, 'ERR')
+    if (project.chart.dataOrientation === 'rows' && dataset) {
+      const rowBindings = series.barRowBindings
+      const startIndex = dataset.columns.findIndex(
+        (column) => column.id === rowBindings.categoryStartColumnId,
+      )
+      const endIndex = dataset.columns.findIndex(
+        (column) => column.id === rowBindings.categoryEndColumnId,
+      )
+      if (startIndex >= 0 && endIndex >= startIndex) {
+        dataset.columns
+          .slice(startIndex, endIndex + 1)
+          .forEach((column) => addBadge(column.id, 'CATEGORY'))
+      }
+      addRowBadge(rowBindings.valueRowId, 'VALUE')
+      addRowBadge(rowBindings.errorRowId, 'ERR')
+    } else {
+      addBadge(series.barBindings.category?.columnId, 'CATEGORY')
+      addBadge(series.barBindings.value?.columnId, 'VALUE')
+      addBadge(series.barBindings.error?.columnId, 'ERR')
+    }
   } else {
     addBadge(series.bindings.x?.columnId, 'X')
     addBadge(series.bindings.y?.columnId, 'Y')
@@ -394,20 +429,35 @@ export function DataGrid({
           <tbody>
             {Array.from({ length: visibleDataRowCount }, (_, dataRowIndex) => {
               const row = dataset?.rows[dataRowIndex]
+              const rowBadges = row ? badgesByRow.get(row.id) ?? [] : []
               const gridRowIndex = dataRowIndex + 1
               return (
                 <tr key={row?.id ?? `empty-row-${dataRowIndex}`}>
-                  <th scope="row">{gridRowIndex + 1}</th>
+                  <th
+                    scope="row"
+                    className={rowBadges.length > 0 ? 'is-bound-row' : undefined}
+                  >
+                    <span className="row-number">{gridRowIndex + 1}</span>
+                    {rowBadges.length > 0 && (
+                      <span className="binding-badges" aria-label={`行の割り当て: ${rowBadges.join(', ')}`}>
+                        {rowBadges.map((badge) => (
+                          <span className="binding-badge" key={badge}>{badge}</span>
+                        ))}
+                      </span>
+                    )}
+                  </th>
                   {Array.from({ length: visibleColumnCount }, (_, columnIndex) => {
                     const column = dataset?.columns[columnIndex]
                     const value =
                       row && column ? row.cells[column.id] ?? null : null
                     const cell = { rowIndex: gridRowIndex, columnIndex }
                     const address = cellAddress(cell)
-                    const bindingClass =
+                    const bindingClass = [
                       column && badgesByColumn.has(column.id)
                         ? 'is-bound-column'
-                        : ''
+                        : '',
+                      rowBadges.length > 0 ? 'is-bound-row' : '',
+                    ].filter(Boolean).join(' ')
                     const editing = Boolean(editSession && sameCell(editSession.cell, cell))
                     return (
                       <td
@@ -439,8 +489,76 @@ export function DataGrid({
               表示は先頭{MAX_VISIBLE_DATA_ROWS}データ行です。全データは保持されています。
             </p>
           )}
+          <fieldset className="data-orientation-fieldset">
+            <legend>データ系列の方向</legend>
+            <div className="orientation-control" role="radiogroup" aria-label="データ系列の方向">
+              <label>
+                <input
+                  type="radio"
+                  name="data-orientation"
+                  value="columns"
+                  checked={project.chart.dataOrientation === 'columns'}
+                  onChange={() => onDataOrientationChange('columns')}
+                />
+                列
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="data-orientation"
+                  value="rows"
+                  checked={project.chart.dataOrientation === 'rows'}
+                  disabled={project.chart.type !== 'bar'}
+                  onChange={() => onDataOrientationChange('rows')}
+                />
+                行
+              </label>
+            </div>
+            <p className="muted-note">
+              {project.chart.type === 'bar'
+                ? '表は転置せず、グラフがデータを列方向または行方向に読みます。'
+                : '行方向は現在、棒グラフで利用できます。'}
+            </p>
+          </fieldset>
           <div className="binding-grid" aria-label="データ列の割り当て">
-            {project.chart.type === 'bar' ? (
+            {project.chart.type === 'bar' && project.chart.dataOrientation === 'rows' ? (
+              <>
+                <ColumnSelect
+                  label="カテゴリ開始列"
+                  value={series.barRowBindings.categoryStartColumnId ?? ''}
+                  columns={dataset.columns}
+                  onChange={(columnId) => onSelectRowCategoryBound('start', columnId)}
+                />
+                <ColumnSelect
+                  label="カテゴリ終了列"
+                  value={series.barRowBindings.categoryEndColumnId ?? ''}
+                  columns={dataset.columns}
+                  onChange={(columnId) => onSelectRowCategoryBound('end', columnId)}
+                />
+                <ColumnSelect
+                  label="行ラベル列"
+                  value={series.barRowBindings.labelColumnId ?? ''}
+                  columns={dataset.columns}
+                  allowNone
+                  onChange={onSelectRowLabelColumn}
+                />
+                <RowSelect
+                  label="値の行"
+                  value={series.barRowBindings.valueRowId ?? ''}
+                  dataset={dataset}
+                  labelColumnId={series.barRowBindings.labelColumnId}
+                  onChange={(rowId) => onSelectRowBinding('value', rowId)}
+                />
+                <RowSelect
+                  label="誤差の行"
+                  value={series.barRowBindings.errorRowId ?? ''}
+                  dataset={dataset}
+                  labelColumnId={series.barRowBindings.labelColumnId}
+                  allowNone
+                  onChange={(rowId) => onSelectRowBinding('error', rowId)}
+                />
+              </>
+            ) : project.chart.type === 'bar' ? (
               <>
                 <ColumnSelect label="カテゴリ列" value={series.barBindings.category?.columnId ?? ''} columns={dataset.columns} onChange={(columnId) => onSelectColumn('category', columnId)} />
                 <ColumnSelect label="値の列" value={series.barBindings.value?.columnId ?? ''} columns={dataset.columns} onChange={(columnId) => onSelectColumn('value', columnId)} />
@@ -464,7 +582,7 @@ export function DataGrid({
           {((bar?.invalidErrorRowIds.length ?? 0) > 0 ||
             (scatter?.invalidErrorRowIds.length ?? 0) > 0) && (
             <div className="data-warning" role="alert">
-              誤差の列に無効値（空、非数値、非有限値、負値）が
+              誤差の{project.chart.type === 'bar' && project.chart.dataOrientation === 'rows' ? '行' : '列'}に無効値（空、非数値、非有限値、負値）が
               {bar?.invalidErrorRowIds.length ?? scatter?.invalidErrorRowIds.length}
               件あります。この系列の誤差範囲全体を表示していません。
               {project.chart.type === 'bar' ? '棒' : '散布点'}と元データは維持されています。
@@ -473,6 +591,42 @@ export function DataGrid({
         </>
       )}
     </section>
+  )
+}
+
+interface RowSelectProps {
+  label: string
+  value: string
+  dataset: ProjectState['datasets'][number]
+  labelColumnId: string | null
+  allowNone?: boolean
+  onChange: (rowId: string | null) => void
+}
+
+function RowSelect({
+  label,
+  value,
+  dataset,
+  labelColumnId,
+  allowNone = false,
+  onChange,
+}: RowSelectProps) {
+  return (
+    <label className="control-label">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value || null)}
+      >
+        {allowNone && <option value="">なし</option>}
+        {!allowNone && value === '' && <option value="">選択</option>}
+        {dataset.rows.map((row, index) => (
+          <option value={row.id} key={row.id}>
+            {formatDataRowLabel(dataset, row, index, labelColumnId)}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 

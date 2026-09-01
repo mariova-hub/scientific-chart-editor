@@ -190,7 +190,7 @@ export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
       showlegend: project.chart.legend.visible,
       x: vertical ? categories : values,
       y: vertical ? values : categories,
-      customdata: resolved.points.map((point) => point.rowId),
+      customdata: resolved.points.map((point) => point.sourceId),
       width: series.style.bar.widthRatio,
       opacity: series.style.bar.opacity,
       marker: {

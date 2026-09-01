@@ -43,6 +43,16 @@ export type LineStyle = 'solid' | 'dash' | 'dot' | 'dash-dot'
 export type LegendPosition = 'right' | 'left' | 'top' | 'bottom'
 export type ChartType = 'scatter' | 'bar'
 export type BarOrientation = 'vertical' | 'horizontal'
+export type DataOrientation = 'columns' | 'rows'
+
+export interface BarRowBindings {
+  datasetId: string | null
+  categoryStartColumnId: string | null
+  categoryEndColumnId: string | null
+  valueRowId: string | null
+  errorRowId: string | null
+  labelColumnId: string | null
+}
 
 export type MajorInterval =
   | { mode: 'auto' }
@@ -122,6 +132,7 @@ export interface SeriesModel {
     value: DataRangeRef | null
     error: DataRangeRef | null
   }
+  barRowBindings: BarRowBindings
   axisIds: { x: string; y: string }
   style: {
     color: string
@@ -158,6 +169,7 @@ export interface SeriesModel {
 export interface ChartModel {
   id: string
   type: ChartType
+  dataOrientation: DataOrientation
   bar: {
     orientation: BarOrientation
     gapRatio: number

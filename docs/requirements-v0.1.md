@@ -355,3 +355,18 @@ Phase 1の「TSV blockの1行目を常にheaderとしてDataset全体を作る�
 - 非編集中のCtrl / Cmd + Vは従来の矩形Grid Pasteを継続する。編集中のPasteはセル内editorの通常文字入力として扱い、Grid Pasteとの二重適用を禁止する。
 
 Phase 3B-3では範囲選択、copy、cut、複数セル消去、数式、行列操作、Undo / Redoへは横展開しない。
+
+## 16. Phase 3B-4で確定した行／列データ解釈規則
+
+- Chart Modelは`dataOrientation: columns | rows`を持つ。これは棒グラフの`vertical | horizontal`、散布図のX/Y binding、Datasetの物理配置とは独立したScientific Chart Editorの意味設定である。
+- `columns`は従来どおりCategory / Value / Errorの列bindingを同一行で対応させる。Phase 1〜3B-3ファイルはfield欠落時に`columns`へdefault hydrationする。
+- Phase 3B-4の`rows`は単一棒系列で利用できる。カテゴリは明示した開始・終了column ID間の列見出し、値と誤差はstable row IDで指定した行を同じcolumn位置で読む。
+- rows modeはdataset ID、カテゴリ開始・終了column ID、value row ID、任意error row ID、任意label column IDを保持する。配列indexやA/B等の列記号を永続参照にしない。
+- 行選択UIはlabel columnのセルを使い、例えば`2行目（平均）`と表示する。既定label候補は先頭列だが、候補はstable column IDとして保持し、任意列指定へ発展可能にする。
+- カテゴリ範囲外の列は描画対象にしない。Valueが有限numberでない位置だけを除外し、後続Category / Errorを詰めない。描画対象位置のErrorにnull、非number、非有限値、負値が1件でもあれば棒を維持して系列全体の誤差範囲を非表示にし、件数を警告する。0は有効である。
+- 行／列切替はDatasetを転置・変更しない。columns bindingとrows bindingを別々に保持し、切替時に既存の明示bindingは再利用できるが、一方から他方を推測生成しない。初回rows切替では必要項目を未設定として再指定を促す。
+- rows modeでも棒の縦／横は独立して変更できる。同じrow bindingを縦棒ではCategory→X・Value→Y・Error→Y、横棒ではValue→X・Category→Y・Error→XへRenderer Adapterが変換する。
+- rows modeで参照中のセル、列見出し、value/error rowを直接編集または矩形Pasteしてもstable ID bindingを維持し、描画・除外・誤差検証を即時再計算する。
+- Scatter rows modeはPhase 3B-4では未対応とし、UIで選択不能にする。rows modeからscatterへ変更する場合はデータ方向を安全な`columns`へ戻し、保存済みrow bindingは将来再利用できるよう保持する。
+
+Phase 3B-4ではData Grid自体の転置、複数Value row、複数系列、grouped / stacked barsへは横展開しない。

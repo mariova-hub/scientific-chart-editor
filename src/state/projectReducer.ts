@@ -3,6 +3,7 @@ import type {
   AxisScaleType,
   BarOrientation,
   ChartType,
+  DataOrientation,
   DatasetModel,
   FontStyleModel,
   LegendPosition,
@@ -23,6 +24,18 @@ export type ProjectAction =
       columnId: string | null
     }
   | { type: 'set-chart-type'; value: ChartType }
+  | { type: 'set-data-orientation'; value: DataOrientation }
+  | {
+      type: 'set-row-category-bound'
+      bound: 'start' | 'end'
+      columnId: string | null
+    }
+  | {
+      type: 'set-row-binding'
+      role: 'value' | 'error'
+      rowId: string | null
+    }
+  | { type: 'set-row-label-column'; columnId: string | null }
   | { type: 'set-bar-orientation'; value: BarOrientation }
   | { type: 'set-bar-gap'; value: number }
   | { type: 'set-axis-title'; axisId: string; title: string }
@@ -145,6 +158,83 @@ export function projectReducer(
   const dataset = project.datasets[0]
   const firstSeries = project.chart.series[0]
 
+  if (action.type === 'set-data-orientation') {
+    if (!firstSeries || (action.value === 'rows' && project.chart.type !== 'bar')) {
+      return project
+    }
+    const nextSeries = action.value === 'rows' && dataset
+      ? {
+          ...firstSeries,
+          barRowBindings: {
+            ...firstSeries.barRowBindings,
+            datasetId: dataset.id,
+            labelColumnId:
+              firstSeries.barRowBindings.labelColumnId ??
+              dataset.columns[0]?.id ??
+              null,
+          },
+        }
+      : firstSeries
+    return withChart(project, {
+      ...project.chart,
+      dataOrientation: action.value,
+      series: [nextSeries],
+    })
+  }
+
+  if (action.type === 'set-row-category-bound') {
+    if (!dataset || !firstSeries) return project
+    const key = action.bound === 'start'
+      ? 'categoryStartColumnId'
+      : 'categoryEndColumnId'
+    const nextSeries = {
+      ...firstSeries,
+      barRowBindings: {
+        ...firstSeries.barRowBindings,
+        datasetId: dataset.id,
+        [key]: action.columnId,
+      },
+    }
+    return withChart(project, { ...project.chart, series: [nextSeries] })
+  }
+
+  if (action.type === 'set-row-binding') {
+    if (!dataset || !firstSeries) return project
+    const key = action.role === 'value' ? 'valueRowId' : 'errorRowId'
+    const labelColumnId = firstSeries.barRowBindings.labelColumnId
+    const row = action.rowId
+      ? dataset.rows.find((candidate) => candidate.id === action.rowId)
+      : undefined
+    const label = row && labelColumnId
+      ? row.cells[labelColumnId] ?? null
+      : null
+    const nextSeries = {
+      ...firstSeries,
+      ...(action.role === 'value' && label !== null
+        ? { name: String(label) }
+        : {}),
+      barRowBindings: {
+        ...firstSeries.barRowBindings,
+        datasetId: dataset.id,
+        [key]: action.rowId,
+      },
+    }
+    return withChart(project, { ...project.chart, series: [nextSeries] })
+  }
+
+  if (action.type === 'set-row-label-column') {
+    if (!dataset || !firstSeries) return project
+    const nextSeries = {
+      ...firstSeries,
+      barRowBindings: {
+        ...firstSeries.barRowBindings,
+        datasetId: dataset.id,
+        labelColumnId: action.columnId,
+      },
+    }
+    return withChart(project, { ...project.chart, series: [nextSeries] })
+  }
+
   if (action.type === 'set-binding') {
     if (!dataset || !firstSeries) return project
     const binding = action.columnId
@@ -230,6 +320,8 @@ export function projectReducer(
     return withChart(project, {
       ...project.chart,
       type: action.value,
+      dataOrientation:
+        action.value === 'scatter' ? 'columns' : project.chart.dataOrientation,
       series: [nextSeries],
     })
   }

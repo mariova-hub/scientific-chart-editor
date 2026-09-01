@@ -654,3 +654,37 @@ Phase 3B-3はschema構造を変更せず`schemaVersion: "0.1"`を維持する。
 - 無効なX/Y/Value/Errorセルによる点除外、誤差範囲の全体非表示、警告件数は保存せず、読み込み後に元セル値とbindingから再計算する。
 
 したがってPhase 1〜3B-2ファイルには新fieldやmigrationを要求せず、従来どおり読み込める。直接編集後に保存したファイルも、既存のDataset validation、stable reference validation、atomic load契約だけで復元できる。
+
+## 21. Phase 3B-4 Data Orientationとrow bindingの保存契約
+
+Phase 3B-4 writerは`schemaVersion: "0.1"`を維持し、ChartへScientific Chart Editor独自の`dataOrientation`を保存する。
+
+```json
+{
+  "chart": {
+    "type": "bar",
+    "dataOrientation": "rows",
+    "bar": { "orientation": "vertical", "gapRatio": 0.2 },
+    "series": [{
+      "barRowBindings": {
+        "datasetId": "dataset-main",
+        "categoryStartColumnId": "col-tube-3",
+        "categoryEndColumnId": "col-tube-7",
+        "valueRowId": "row-average",
+        "errorRowId": "row-sd",
+        "labelColumnId": "col-item"
+      }
+    }]
+  }
+}
+```
+
+- `dataOrientation`のenumは`columns` / `rows`。PlotlyのorientationやDataset転置状態を表さない。
+- `barRowBindings.datasetId`は参照Dataset、category start / endは両端を含む連続column範囲、value / errorはstable row ID、labelはUI表示元のstable column IDである。
+- `errorRowId`と`labelColumnId`はnullを許容する。rows modeの有効な棒グラフではdataset、category start / end、value rowが必須である。
+- Category値は対象columnの`name`から解決する。Value / Errorは同じcolumn IDをkeyに指定rowの`cells`から解決し、配列index、A列等の表示記号、値配列のコピーを保存しない。
+- `barBindings`と`barRowBindings`はそれぞれcolumns / rowsの明示設定として併存できる。inactive側を保存することで再切替時に利用者の指定を復元するが、一方から他方をmigrationで推測しない。
+- 棒の`vertical` / `horizontal`は従来どおり`chart.bar.orientation`へ独立保存する。Y Error / X ErrorというPlotly mapping、解決済み配列、無効件数は保存しない。
+- Runtime validationはenum、dataset ID、各row / column ID、category startがend以前であることを検証する。broken referenceまたは逆順範囲は補正せず拒否する。
+
+Phase 1〜3B-3の`0.1`ファイルで`dataOrientation`と`barRowBindings`が欠落する場合だけ、それぞれ`columns`と全field nullのrow bindingを補う。既存`barBindings`は変更しない。明示された不正enum・型・参照をdefault hydrationで救済せず、validation成功後だけProject Stateへatomic loadする。

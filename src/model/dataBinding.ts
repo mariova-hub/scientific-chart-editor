@@ -3,6 +3,7 @@ import type {
   DataRangeRef,
   DatasetModel,
   ProjectState,
+  RowModel,
   SeriesModel,
 } from './types'
 
@@ -28,6 +29,8 @@ export interface ResolvedScatterSeries {
 export type BarCategory = number | string
 
 export interface BarPoint {
+  sourceId: string
+  /** Kept as a compatibility alias for column-oriented consumers. */
   rowId: string
   category: BarCategory
   value: number
@@ -36,9 +39,22 @@ export interface BarPoint {
 
 export interface ResolvedBarSeries {
   points: BarPoint[]
+  skippedSourceIds: string[]
+  invalidErrorSourceIds: string[]
   skippedRowIds: string[]
   invalidErrorRowIds: string[]
   showErrorBars: boolean
+}
+
+function emptyBarSeries(): ResolvedBarSeries {
+  return {
+    points: [],
+    skippedSourceIds: [],
+    invalidErrorSourceIds: [],
+    skippedRowIds: [],
+    invalidErrorRowIds: [],
+    showErrorBars: false,
+  }
 }
 
 function findDataset(
@@ -143,15 +159,17 @@ export function resolveBarSeries(
   project: ProjectState,
   series: SeriesModel,
 ): ResolvedBarSeries {
+  return project.chart.dataOrientation === 'rows'
+    ? resolveRowOrientedBarSeries(project, series)
+    : resolveColumnOrientedBarSeries(project, series)
+}
+
+function resolveColumnOrientedBarSeries(
+  project: ProjectState,
+  series: SeriesModel,
+): ResolvedBarSeries {
   const { category, value, error } = series.barBindings
-  if (!category || !value) {
-    return {
-      points: [],
-      skippedRowIds: [],
-      invalidErrorRowIds: [],
-      showErrorBars: false,
-    }
-  }
+  if (!category || !value) return emptyBarSeries()
 
   const categoryCells = resolveDataRange(project.datasets, category)
   const valueCells = resolveDataRange(project.datasets, value)
@@ -188,6 +206,7 @@ export function resolveBarSeries(
     }
 
     points.push({
+      sourceId: categoryCell.rowId,
       rowId: categoryCell.rowId,
       category: categoryCell.value,
       value: valueCell.value,
@@ -197,10 +216,108 @@ export function resolveBarSeries(
 
   return {
     points,
+    skippedSourceIds: skippedRowIds,
+    invalidErrorSourceIds: invalidErrorRowIds,
     skippedRowIds,
     invalidErrorRowIds,
     showErrorBars: errorCells !== null && invalidErrorRowIds.length === 0,
   }
+}
+
+function resolveRowOrientedBarSeries(
+  project: ProjectState,
+  series: SeriesModel,
+): ResolvedBarSeries {
+  const binding = series.barRowBindings
+  if (
+    !binding.datasetId ||
+    !binding.categoryStartColumnId ||
+    !binding.categoryEndColumnId ||
+    !binding.valueRowId
+  ) {
+    return emptyBarSeries()
+  }
+
+  const dataset = findDataset(project.datasets, binding.datasetId)
+  if (!dataset) return emptyBarSeries()
+  const startIndex = dataset.columns.findIndex(
+    (column) => column.id === binding.categoryStartColumnId,
+  )
+  const endIndex = dataset.columns.findIndex(
+    (column) => column.id === binding.categoryEndColumnId,
+  )
+  const valueRow = dataset.rows.find((row) => row.id === binding.valueRowId)
+  const errorRow = binding.errorRowId
+    ? dataset.rows.find((row) => row.id === binding.errorRowId)
+    : null
+  if (startIndex < 0 || endIndex < startIndex || !valueRow) {
+    return emptyBarSeries()
+  }
+  if (binding.errorRowId && !errorRow) return emptyBarSeries()
+
+  const points: BarPoint[] = []
+  const skippedSourceIds: string[] = []
+  const invalidErrorSourceIds: string[] = []
+  const categoryColumns = dataset.columns.slice(startIndex, endIndex + 1)
+
+  for (const column of categoryColumns) {
+    const category = column.name
+    const value = valueRow.cells[column.id] ?? null
+    if (!isBarCategory(category) || typeof value !== 'number' || !Number.isFinite(value)) {
+      skippedSourceIds.push(column.id)
+      continue
+    }
+
+    let error: number | null = null
+    if (errorRow) {
+      const candidate = errorRow.cells[column.id] ?? null
+      if (
+        typeof candidate === 'number' &&
+        Number.isFinite(candidate) &&
+        candidate >= 0
+      ) {
+        error = candidate
+      } else {
+        invalidErrorSourceIds.push(column.id)
+      }
+    }
+
+    points.push({
+      sourceId: column.id,
+      rowId: column.id,
+      category,
+      value,
+      error,
+    })
+  }
+
+  return {
+    points,
+    skippedSourceIds,
+    invalidErrorSourceIds,
+    skippedRowIds: skippedSourceIds,
+    invalidErrorRowIds: invalidErrorSourceIds,
+    showErrorBars: errorRow !== null && invalidErrorSourceIds.length === 0,
+  }
+}
+
+export function formatDataRowLabel(
+  dataset: DatasetModel,
+  row: RowModel,
+  rowIndex: number,
+  labelColumnId: string | null,
+): string {
+  const validLabelColumnId = labelColumnId &&
+    dataset.columns.some((column) => column.id === labelColumnId)
+    ? labelColumnId
+    : null
+  const label = validLabelColumnId
+    ? row.cells[validLabelColumnId] ?? null
+    : null
+  const suffix = label === null || String(label).trim() === ''
+    ? ''
+    : `（${String(label)}）`
+  return `${rowIndex + 2}行目${suffix}`
 }
 
 export function isCategoryAxis(

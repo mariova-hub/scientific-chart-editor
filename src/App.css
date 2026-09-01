@@ -297,6 +297,25 @@ select {
   margin: 12px 0 10px;
 }
 
+.data-orientation-fieldset {
+  margin: 12px 0 0;
+  padding: 9px 10px 10px;
+  border: 1px solid #d7e0ec;
+  border-radius: 7px;
+  background: #f8fafd;
+}
+
+.data-orientation-fieldset legend {
+  padding: 0 4px;
+  color: #34445c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.data-orientation-fieldset .muted-note {
+  margin: 7px 0 0;
+}
+
 .data-summary {
   display: flex;
   flex-wrap: wrap;
@@ -381,8 +400,8 @@ select {
   position: sticky;
   left: 0;
   z-index: 2;
-  min-width: 48px;
-  max-width: 48px;
+  min-width: 66px;
+  max-width: 66px;
   text-align: center;
   background: #f4f7fa;
 }
@@ -393,6 +412,31 @@ select {
 
 .data-table .is-bound-column {
   background: #eef5ff;
+}
+
+.data-table .is-bound-row {
+  background: #f5f0ff;
+}
+
+.data-table .is-bound-column.is-bound-row {
+  background: linear-gradient(135deg, #eef5ff 50%, #f5f0ff 50%);
+}
+
+.row-number {
+  display: inline;
+}
+
+.data-table tbody th .binding-badges {
+  display: inline-flex;
+  justify-content: center;
+  margin-top: 0;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+.data-table tbody th .binding-badge {
+  padding: 1px 3px;
+  font-size: 8px;
 }
 
 .data-table [data-grid-row] {
@@ -783,6 +827,11 @@ legend {
   width: 16px;
   min-height: 16px;
   margin: 0;
+}
+
+.orientation-control label:has(input:disabled) {
+  color: #8793a5;
+  background: #f4f6f8;
 }
 
 .validation-box ul {

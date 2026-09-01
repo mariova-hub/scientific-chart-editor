@@ -41,6 +41,72 @@ function validateBinding(
   return []
 }
 
+function validateBarRowBindings(
+  project: ProjectState,
+  requireCompleteBinding: boolean,
+): ValidationIssue[] {
+  const binding = project.chart.series[0].barRowBindings
+  const path = 'project.chart.series[0].barRowBindings'
+  const issues: ValidationIssue[] = []
+  const hasStoredReference = Object.values(binding).some((value) => value !== null)
+  if (!requireCompleteBinding && !hasStoredReference) return []
+  if (!binding.datasetId) {
+    return [issue('binding.required', `${path}.datasetId`, '参照する表を選択してください。')]
+  }
+  const dataset = project.datasets.find((item) => item.id === binding.datasetId)
+  if (!dataset) {
+    return [issue('reference.dataset', `${path}.datasetId`, '参照先の表が存在しません。')]
+  }
+
+  const columnIndex = (columnId: string | null) =>
+    columnId === null
+      ? -1
+      : dataset.columns.findIndex((column) => column.id === columnId)
+  if (requireCompleteBinding && !binding.categoryStartColumnId) {
+    issues.push(issue('binding.required', `${path}.categoryStartColumnId`, 'カテゴリの開始列を選択してください。'))
+  } else if (
+    binding.categoryStartColumnId !== null &&
+    columnIndex(binding.categoryStartColumnId) < 0
+  ) {
+    issues.push(issue('reference.column', `${path}.categoryStartColumnId`, 'カテゴリの開始列が存在しません。'))
+  }
+  if (requireCompleteBinding && !binding.categoryEndColumnId) {
+    issues.push(issue('binding.required', `${path}.categoryEndColumnId`, 'カテゴリの終了列を選択してください。'))
+  } else if (
+    binding.categoryEndColumnId !== null &&
+    columnIndex(binding.categoryEndColumnId) < 0
+  ) {
+    issues.push(issue('reference.column', `${path}.categoryEndColumnId`, 'カテゴリの終了列が存在しません。'))
+  }
+  const startIndex = columnIndex(binding.categoryStartColumnId)
+  const endIndex = columnIndex(binding.categoryEndColumnId)
+  if (startIndex >= 0 && endIndex >= 0 && startIndex > endIndex) {
+    issues.push(issue('binding.categoryRange', `${path}.categoryStartColumnId`, 'カテゴリの開始列は終了列以前にしてください。'))
+  }
+
+  if (requireCompleteBinding && !binding.valueRowId) {
+    issues.push(issue('binding.required', `${path}.valueRowId`, '値の行を選択してください。'))
+  } else if (
+    binding.valueRowId !== null &&
+    !dataset.rows.some((row) => row.id === binding.valueRowId)
+  ) {
+    issues.push(issue('reference.row', `${path}.valueRowId`, '値の行が存在しません。'))
+  }
+  if (
+    binding.errorRowId !== null &&
+    !dataset.rows.some((row) => row.id === binding.errorRowId)
+  ) {
+    issues.push(issue('reference.row', `${path}.errorRowId`, '誤差の行が存在しません。'))
+  }
+  if (
+    binding.labelColumnId !== null &&
+    !dataset.columns.some((column) => column.id === binding.labelColumnId)
+  ) {
+    issues.push(issue('reference.column', `${path}.labelColumnId`, '行ラベルの列が存在しません。'))
+  }
+  return issues
+}
+
 function validateAxis(axis: AxisModel, path: string): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const { minimum, maximum } = axis.scale
@@ -110,6 +176,13 @@ export function validateProjectSemantics(
   if (project.chart.type !== 'scatter' && project.chart.type !== 'bar') {
     issues.push(issue('chart.type', 'project.chart.type', '対応していないグラフの種類です。'))
   }
+  if (project.chart.type === 'scatter' && project.chart.dataOrientation === 'rows') {
+    issues.push(issue(
+      'dataOrientation.unsupported',
+      'project.chart.dataOrientation',
+      '行方向のデータ解釈は現在、棒グラフで利用できます。',
+    ))
+  }
   if (project.chart.axes.length !== 2) {
     issues.push(issue('axis.count', 'project.chart.axes', 'X軸とY軸が1つずつ必要です。'))
   }
@@ -124,70 +197,81 @@ export function validateProjectSemantics(
   issues.push(...validateLogAxes(project))
 
   const series = project.chart.series[0]
-  const primaryBinding =
-    project.chart.type === 'bar'
+  const rowOrientedBar =
+    project.chart.type === 'bar' && project.chart.dataOrientation === 'rows'
+  const primaryBinding = rowOrientedBar
+    ? null
+    : project.chart.type === 'bar'
       ? series.barBindings.category
       : series.bindings.x
-  const secondaryBinding =
-    project.chart.type === 'bar' ? series.barBindings.value : series.bindings.y
-  const primaryPath =
-    project.chart.type === 'bar'
-      ? 'project.chart.series[0].barBindings.category'
-      : 'project.chart.series[0].bindings.x'
-  const secondaryPath =
-    project.chart.type === 'bar'
-      ? 'project.chart.series[0].barBindings.value'
-      : 'project.chart.series[0].bindings.y'
-  issues.push(...validateBinding(project, primaryBinding, primaryPath))
-  issues.push(...validateBinding(project, secondaryBinding, secondaryPath))
+  const secondaryBinding = rowOrientedBar
+    ? null
+    : project.chart.type === 'bar'
+      ? series.barBindings.value
+      : series.bindings.y
+  if (rowOrientedBar) {
+    issues.push(...validateBarRowBindings(project, true))
+  } else {
+    issues.push(...validateBarRowBindings(project, false))
+    const primaryPath =
+      project.chart.type === 'bar'
+        ? 'project.chart.series[0].barBindings.category'
+        : 'project.chart.series[0].bindings.x'
+    const secondaryPath =
+      project.chart.type === 'bar'
+        ? 'project.chart.series[0].barBindings.value'
+        : 'project.chart.series[0].bindings.y'
+    issues.push(...validateBinding(project, primaryBinding, primaryPath))
+    issues.push(...validateBinding(project, secondaryBinding, secondaryPath))
+
+    if (primaryBinding && secondaryBinding) {
+      const primaryLength = resolveDataRange(project.datasets, primaryBinding).length
+      const secondaryLength = resolveDataRange(project.datasets, secondaryBinding).length
+      if (primaryLength !== secondaryLength) {
+        issues.push(issue(
+          'binding.length',
+          project.chart.type === 'bar'
+            ? 'project.chart.series[0].barBindings'
+            : 'project.chart.series[0].bindings',
+          project.chart.type === 'bar'
+            ? 'カテゴリ列と値の列の範囲長が一致しません。'
+            : 'X列とY列の範囲長が一致しません。',
+        ))
+      }
+    }
+
+    const errorBinding =
+      project.chart.type === 'bar'
+        ? series.barBindings.error
+        : series.errorBars.y.enabled
+          ? series.errorBars.y.value?.source ?? null
+          : null
+    if (errorBinding) {
+      const errorPath = project.chart.type === 'bar'
+        ? 'project.chart.series[0].barBindings.error'
+        : 'project.chart.series[0].errorBars.y.value.source'
+      issues.push(...validateBinding(project, errorBinding, errorPath))
+      if (primaryBinding) {
+        const primaryLength = resolveDataRange(project.datasets, primaryBinding).length
+        const errorLength = resolveDataRange(project.datasets, errorBinding).length
+        if (primaryLength !== errorLength) {
+          issues.push(issue(
+            'errorBar.length',
+            errorPath,
+            project.chart.type === 'bar'
+              ? '誤差の列の範囲長がカテゴリ列・値の列と一致しません。'
+              : 'Y Error列の範囲長がX/Y列と一致しません。',
+          ))
+        }
+      }
+    } else if (project.chart.type === 'scatter' && series.errorBars.y.enabled) {
+      issues.push(issue('errorBar.required', 'project.chart.series[0].errorBars.y.value', 'Y Error列を選択してください。'))
+    }
+  }
 
   const axisIds = new Set(project.chart.axes.map((axis) => axis.id))
   if (!axisIds.has(series.axisIds.x) || !axisIds.has(series.axisIds.y)) {
     issues.push(issue('reference.axis', 'project.chart.series[0].axisIds', '系列の参照軸が存在しません。'))
-  }
-
-  if (primaryBinding && secondaryBinding) {
-    const primaryLength = resolveDataRange(project.datasets, primaryBinding).length
-    const secondaryLength = resolveDataRange(project.datasets, secondaryBinding).length
-    if (primaryLength !== secondaryLength) {
-      issues.push(issue(
-        'binding.length',
-        project.chart.type === 'bar'
-          ? 'project.chart.series[0].barBindings'
-          : 'project.chart.series[0].bindings',
-        project.chart.type === 'bar'
-          ? 'カテゴリ列と値の列の範囲長が一致しません。'
-          : 'X列とY列の範囲長が一致しません。',
-      ))
-    }
-  }
-
-  const errorBinding =
-    project.chart.type === 'bar'
-      ? series.barBindings.error
-      : series.errorBars.y.enabled
-        ? series.errorBars.y.value?.source ?? null
-        : null
-  if (errorBinding) {
-    const errorPath = project.chart.type === 'bar'
-      ? 'project.chart.series[0].barBindings.error'
-      : 'project.chart.series[0].errorBars.y.value.source'
-    issues.push(...validateBinding(project, errorBinding, errorPath))
-    if (primaryBinding) {
-      const primaryLength = resolveDataRange(project.datasets, primaryBinding).length
-      const errorLength = resolveDataRange(project.datasets, errorBinding).length
-      if (primaryLength !== errorLength) {
-        issues.push(issue(
-          'errorBar.length',
-          errorPath,
-          project.chart.type === 'bar'
-            ? '誤差の列の範囲長がカテゴリ列・値の列と一致しません。'
-            : 'Y Error列の範囲長がX/Y列と一致しません。',
-        ))
-      }
-    }
-  } else if (project.chart.type === 'scatter' && series.errorBars.y.enabled) {
-    issues.push(issue('errorBar.required', 'project.chart.series[0].errorBars.y.value', 'Y Error列を選択してください。'))
   }
 
   const styleChecks: Array<[boolean, string, string]> = [

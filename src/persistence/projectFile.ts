@@ -4,6 +4,7 @@ import {
   defaultAxisLabels,
   defaultAxisLine,
   defaultBarOptions,
+  defaultBarRowBindings,
   defaultBarStyle,
   defaultChartStyle,
   defaultErrorBarStyle,
@@ -141,6 +142,10 @@ function hydrateProjectV01(value: unknown): unknown {
                   : null,
             },
           ),
+          barRowBindings: valueOrDefault(
+            item.barRowBindings,
+            defaultBarRowBindings(),
+          ),
           style: { ...style, line, marker, bar },
           errorBars,
         }
@@ -156,6 +161,7 @@ function hydrateProjectV01(value: unknown): unknown {
     ...value,
     chart: {
       ...chart,
+      dataOrientation: valueOrDefault(chart.dataOrientation, 'columns'),
       bar: valueOrDefault(chart.bar, defaultBarOptions()),
       axes,
       series,
@@ -183,6 +189,20 @@ function isDataRange(value: unknown): value is DataRangeRef {
 
 function isDataRangeOrNull(value: unknown): value is DataRangeRef | null {
   return value === null || isDataRange(value)
+}
+
+function isBarRowBindings(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  const nullableString = (candidate: unknown) =>
+    candidate === null || typeof candidate === 'string'
+  return (
+    nullableString(value.datasetId) &&
+    nullableString(value.categoryStartColumnId) &&
+    nullableString(value.categoryEndColumnId) &&
+    nullableString(value.valueRowId) &&
+    nullableString(value.errorRowId) &&
+    nullableString(value.labelColumnId)
+  )
 }
 
 function isDataset(value: unknown): value is DatasetModel {
@@ -303,6 +323,7 @@ function isSeries(value: unknown): value is SeriesModel {
     !isDataRangeOrNull(value.barBindings.category) ||
     !isDataRangeOrNull(value.barBindings.value) ||
     !isDataRangeOrNull(value.barBindings.error) ||
+    !isBarRowBindings(value.barRowBindings) ||
     !isRecord(value.axisIds) ||
     typeof value.axisIds.x !== 'string' ||
     typeof value.axisIds.y !== 'string' ||
@@ -359,6 +380,8 @@ function isProjectState(value: unknown): value is ProjectState {
     !isRecord(value.chart) ||
     typeof value.chart.id !== 'string' ||
     (value.chart.type !== 'scatter' && value.chart.type !== 'bar') ||
+    (value.chart.dataOrientation !== 'columns' &&
+      value.chart.dataOrientation !== 'rows') ||
     !isRecord(value.chart.bar) ||
     (value.chart.bar.orientation !== 'vertical' &&
       value.chart.bar.orientation !== 'horizontal') ||

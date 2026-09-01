@@ -180,7 +180,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3B-3</span>
+        <span className="phase-badge">v0.1 · Phase 3B-4</span>
       </header>
 
       <Toolbar
@@ -204,6 +204,22 @@ function App() {
           onClearCell={handleCellClear}
           onSelectColumn={(role, columnId) =>
             handleProjectAction({ type: 'set-binding', role, columnId })
+          }
+          onDataOrientationChange={(value) =>
+            handleProjectAction({ type: 'set-data-orientation', value })
+          }
+          onSelectRowCategoryBound={(bound, columnId) =>
+            handleProjectAction({
+              type: 'set-row-category-bound',
+              bound,
+              columnId,
+            })
+          }
+          onSelectRowBinding={(role, rowId) =>
+            handleProjectAction({ type: 'set-row-binding', role, rowId })
+          }
+          onSelectRowLabelColumn={(columnId) =>
+            handleProjectAction({ type: 'set-row-label-column', columnId })
           }
         />
         <PaneResizeHandle

@@ -1,5 +1,6 @@
 import type {
   AxisModel,
+  BarRowBindings,
   ErrorBarModel,
   FontStyleModel,
   SeriesModel,
@@ -74,5 +75,16 @@ export function defaultBarOptions() {
   return {
     orientation: 'vertical' as const,
     gapRatio: 0.2,
+  }
+}
+
+export function defaultBarRowBindings(): BarRowBindings {
+  return {
+    datasetId: null,
+    categoryStartColumnId: null,
+    categoryEndColumnId: null,
+    valueRowId: null,
+    errorRowId: null,
+    labelColumnId: null,
   }
 }
