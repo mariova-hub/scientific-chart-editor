@@ -340,3 +340,18 @@ Phase 1の「TSV blockの1行目を常にheaderとしてDataset全体を作る�
 - 数値draftはblurまたはEnterで確定する。有限数、`minimum < maximum`、主・補助単位が0より大きいことを候補Projectで検証し、不正なら直前のChart Modelを維持して具体的な理由を表示する。値をclampまたは別値へ補正しない。
 - 対数軸の固定minimum / maximumは0より大きくなければならない。既存の描画データ・誤差下端の対数validationも引き続き適用する。
 - 棒グラフ値軸の固定minimumが0以外の場合は設定を受理し、0 baselineの非ブロッキング警告を表示する。
+
+## 15. Phase 3B-3で確定したセル直接編集規則
+
+- Active Cellとは別に、編集中セルと文字列draftをSession Stateとして保持する。セル編集の途中値、composition状態、エラー表示はProjectへ保存しない。
+- ダブルクリック、Active CellでのEnterまたはF2は現在値をdraftにした編集を開始する。非編集中の通常文字入力は既存値を連結せず、その入力文字から置換編集を開始する。
+- 編集中のEnterは確定して下（Shift+Enterは上）、Tabは確定して右（Shift+Tabは左）へ移動する。EscapeはDatasetを変更せず編集を取り消し、blurは現在draftを安全に確定する。編集中のArrow / Backspaceはテキストeditor本来の操作へ渡す。
+- IME composition中またはDOMがIME処理中を示す`keyCode: 229`のEnterは、セル編集の確定として扱わない。日本語変換の確定後に押された通常のEnterだけがセルを確定する。
+- 編集確定はPasteと同じ`parseCell`規則を使用する。有限な10進数・指数表記はnumber、空文字または空白だけはnull、NaN / Infinityを含むその他はstringである。
+- 見出し編集は`ColumnModel.name`だけを変更し、空見出しは空stringとして保持する。選択UIは列記号を含む「A列（見出しなし）」等のfallbackを表示し、データへ補完名を書き戻さない。
+- 非編集中のDelete / Backspaceは、データセルをnull、見出しを空stringへ変更する。行・列・stable IDは削除しない。編集モード中のBackspaceは文字削除である。
+- 直接編集・消去は対象セル値だけを変更し、既存dataset / row / column IDとcolumn ID参照のbindingを維持する。値に応じた描画除外・誤差値警告は確定後に再計算する。
+- 1セルの編集確定は単一`edit-cell` action、1セルの消去は単一`clear-cell` actionでProject Reducerへ渡し、UIからModelを直接変更しない。将来のUndo / Redoでは各actionを1操作として記録できる。
+- 非編集中のCtrl / Cmd + Vは従来の矩形Grid Pasteを継続する。編集中のPasteはセル内editorの通常文字入力として扱い、Grid Pasteとの二重適用を禁止する。
+
+Phase 3B-3では範囲選択、copy、cut、複数セル消去、数式、行列操作、Undo / Redoへは横展開しない。

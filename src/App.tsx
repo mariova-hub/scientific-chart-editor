@@ -9,6 +9,7 @@ import { FormatPane } from './components/FormatPane/FormatPane'
 import { PaneResizeHandle } from './components/PaneResizeHandle'
 import { Toolbar } from './components/Toolbar/Toolbar'
 import { parseClipboardTsv } from './data/tsv/parseTsv'
+import { applyCellEdit, clearGridCell } from './data/grid/editCell'
 import {
   applyRectangularPaste,
   cellAddress,
@@ -99,6 +100,26 @@ function App() {
     }
   }
 
+  const handleCellEdit = (cell: ActiveCell, draft: string) => {
+    const result = applyCellEdit(project.datasets[0], cell, draft)
+    if (!result.ok) {
+      showMessage(result.message, 'error')
+      return result.message
+    }
+    if (!result.changed) return null
+    return handleProjectAction({ type: 'edit-cell', dataset: result.dataset })
+  }
+
+  const handleCellClear = (cell: ActiveCell) => {
+    const result = clearGridCell(project.datasets[0], cell)
+    if (!result.ok) {
+      showMessage(result.message, 'error')
+      return result.message
+    }
+    if (!result.changed) return null
+    return handleProjectAction({ type: 'clear-cell', dataset: result.dataset })
+  }
+
   const handleSave = () => {
     try {
       const json = serializeProjectFile(project)
@@ -159,7 +180,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3B-2</span>
+        <span className="phase-badge">v0.1 · Phase 3B-3</span>
       </header>
 
       <Toolbar
@@ -179,6 +200,8 @@ function App() {
         <DataGrid
           project={project}
           onPasteRange={handlePasteRange}
+          onEditCell={handleCellEdit}
+          onClearCell={handleCellClear}
           onSelectColumn={(role, columnId) =>
             handleProjectAction({ type: 'set-binding', role, columnId })
           }

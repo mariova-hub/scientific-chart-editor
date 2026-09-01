@@ -1,9 +1,17 @@
 import {
+  useReducer,
   useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
 } from 'react'
+import { flushSync } from 'react-dom'
+import { readGridCellText } from '../../data/grid/editCell'
+import {
+  cellEditSessionReducer,
+  isDirectEditKey,
+  isImeCompositionKey,
+} from '../../data/grid/editSession'
 import {
   cellAddress,
   type ActiveCell,
@@ -25,6 +33,8 @@ type BindingRole =
 interface DataGridProps {
   project: ProjectState
   onPasteRange: (start: ActiveCell, source: string) => void
+  onEditCell: (cell: ActiveCell, draft: string) => string | null
+  onClearCell: (cell: ActiveCell) => string | null
   onSelectColumn: (role: BindingRole, columnId: string | null) => void
 }
 
@@ -40,15 +50,27 @@ function columnLetter(columnIndex: number): string {
   return cellAddress({ rowIndex: 0, columnIndex }).replace(/\d+$/, '')
 }
 
+function sameCell(left: ActiveCell, right: ActiveCell): boolean {
+  return (
+    left.rowIndex === right.rowIndex &&
+    left.columnIndex === right.columnIndex
+  )
+}
+
 export function DataGrid({
   project,
   onPasteRange,
+  onEditCell,
+  onClearCell,
   onSelectColumn,
 }: DataGridProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>({
     rowIndex: 0,
     columnIndex: 0,
   })
+  const [editSession, editDispatch] = useReducer(cellEditSessionReducer, null)
+  const [editError, setEditError] = useState<string | null>(null)
+  const compositionActive = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const dataset = project.datasets[0]
   const series = project.chart.series[0]
@@ -100,25 +122,114 @@ export function DataGrid({
     })
   }
 
+  const focusEditor = (cell: ActiveCell, placeAtEnd = true) => {
+    const focus = () => {
+      const editor = gridRef.current?.querySelector<HTMLInputElement>(
+        `[data-cell-editor-row="${cell.rowIndex}"][data-cell-editor-column="${cell.columnIndex}"]`,
+      )
+      editor?.focus()
+      if (placeAtEnd && editor) {
+        editor.setSelectionRange(editor.value.length, editor.value.length)
+      }
+      return Boolean(editor)
+    }
+    if (!focus()) requestAnimationFrame(focus)
+  }
+
+  const startEditing = (
+    cell: ActiveCell,
+    initialDraft = readGridCellText(dataset, cell),
+  ) => {
+    compositionActive.current = false
+    // IME composition must see a focused text input during the initiating
+    // keyboard event, so commit the editor synchronously before it continues.
+    flushSync(() => {
+      setActiveCell(cell)
+      setEditError(null)
+      editDispatch({ type: 'start', cell, draft: initialDraft })
+    })
+    focusEditor(cell)
+  }
+
+  const cancelEditing = () => {
+    const cell = editSession?.cell
+    compositionActive.current = false
+    setEditError(null)
+    editDispatch({ type: 'cancel' })
+    if (cell) focusCell(cell)
+  }
+
+  const moveCell = (
+    cell: ActiveCell,
+    rowDelta: number,
+    columnDelta: number,
+  ): ActiveCell => ({
+    rowIndex: Math.min(
+      visibleDataRowCount,
+      Math.max(0, cell.rowIndex + rowDelta),
+    ),
+    columnIndex: Math.min(
+      visibleColumnCount - 1,
+      Math.max(0, cell.columnIndex + columnDelta),
+    ),
+  })
+
+  const finishEditing = (nextCell?: ActiveCell, restoreFocus = true) => {
+    if (!editSession) return
+    const error = onEditCell(editSession.cell, editSession.draft)
+    if (error) {
+      setEditError(error)
+      focusEditor(editSession.cell, false)
+      return
+    }
+    compositionActive.current = false
+    setEditError(null)
+    editDispatch({ type: 'finish' })
+    if (nextCell) focusCell(nextCell)
+    else if (restoreFocus) focusCell(editSession.cell)
+  }
+
   const handleCellKeyDown = (
     event: KeyboardEvent<HTMLElement>,
     cell: ActiveCell,
   ) => {
+    if (editSession) return
+
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault()
+      onClearCell(cell)
+      return
+    }
+    if (event.key === 'Enter' || event.key === 'F2') {
+      event.preventDefault()
+      startEditing(cell)
+      return
+    }
+    if (
+      isDirectEditKey({
+        key: event.key,
+        keyCode: event.keyCode,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      })
+    ) {
+      if (event.key.length === 1) event.preventDefault()
+      startEditing(cell, event.key.length === 1 ? event.key : '')
+      return
+    }
+
     let next: ActiveCell | null = null
     if (event.key === 'ArrowLeft') {
-      next = { ...cell, columnIndex: Math.max(0, cell.columnIndex - 1) }
-    } else if (event.key === 'ArrowRight' || event.key === 'Tab') {
-      next = {
-        ...cell,
-        columnIndex: Math.min(visibleColumnCount - 1, cell.columnIndex + 1),
-      }
+      next = moveCell(cell, 0, -1)
+    } else if (event.key === 'ArrowRight') {
+      next = moveCell(cell, 0, 1)
+    } else if (event.key === 'Tab') {
+      next = moveCell(cell, 0, event.shiftKey ? -1 : 1)
     } else if (event.key === 'ArrowUp') {
-      next = { ...cell, rowIndex: Math.max(0, cell.rowIndex - 1) }
-    } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
-      next = {
-        ...cell,
-        rowIndex: Math.min(visibleDataRowCount, cell.rowIndex + 1),
-      }
+      next = moveCell(cell, -1, 0)
+    } else if (event.key === 'ArrowDown') {
+      next = moveCell(cell, 1, 0)
     }
     if (!next) return
     event.preventDefault()
@@ -128,24 +239,74 @@ export function DataGrid({
   const cellProps = (cell: ActiveCell) => ({
     'data-grid-row': cell.rowIndex,
     'data-grid-column': cell.columnIndex,
-    tabIndex:
-      activeCell.rowIndex === cell.rowIndex &&
-      activeCell.columnIndex === cell.columnIndex
-        ? 0
-        : -1,
-    className:
-      activeCell.rowIndex === cell.rowIndex &&
-      activeCell.columnIndex === cell.columnIndex
-        ? 'is-active-cell'
-        : undefined,
+    tabIndex: sameCell(activeCell, cell) ? 0 : -1,
     onClick: (event: MouseEvent<HTMLElement>) => {
+      if ((event.target as HTMLElement).closest('input')) return
       setActiveCell(cell)
       event.currentTarget.focus()
+    },
+    onDoubleClick: (event: MouseEvent<HTMLElement>) => {
+      event.preventDefault()
+      startEditing(cell)
     },
     onFocus: () => setActiveCell(cell),
     onKeyDown: (event: KeyboardEvent<HTMLElement>) =>
       handleCellKeyDown(event, cell),
   })
+
+  const editorFor = (cell: ActiveCell) => {
+    if (!editSession || !sameCell(editSession.cell, cell)) return null
+    const address = cellAddress(cell)
+    return (
+      <input
+        className="cell-editor"
+        data-cell-editor-row={cell.rowIndex}
+        data-cell-editor-column={cell.columnIndex}
+        aria-label={`${address}を編集中`}
+        aria-invalid={editError ? true : undefined}
+        value={editSession.draft}
+        onChange={(event) =>
+          editDispatch({ type: 'change', draft: event.target.value })
+        }
+        onCompositionStart={() => {
+          compositionActive.current = true
+        }}
+        onCompositionEnd={() => {
+          compositionActive.current = false
+        }}
+        onPaste={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          event.stopPropagation()
+          if (
+            isImeCompositionKey(
+              {
+                isComposing: event.nativeEvent.isComposing,
+                keyCode: event.keyCode,
+              },
+              compositionActive.current,
+            )
+          ) {
+            return
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            cancelEditing()
+          } else if (event.key === 'Enter') {
+            event.preventDefault()
+            finishEditing(
+              moveCell(cell, event.shiftKey ? -1 : 1, 0),
+            )
+          } else if (event.key === 'Tab') {
+            event.preventDefault()
+            finishEditing(
+              moveCell(cell, 0, event.shiftKey ? -1 : 1),
+            )
+          }
+        }}
+        onBlur={() => finishEditing(undefined, false)}
+      />
+    )
+  }
 
   return (
     <section className="workspace-panel data-panel" aria-labelledby="data-heading">
@@ -158,14 +319,18 @@ export function DataGrid({
       </div>
 
       <div className="grid-paste-guide">
-        <strong>アクティブセル: {cellAddress(activeCell)}</strong>
-        <span>セルを選択してCtrl+V（Macは⌘V）で貼り付け</span>
+        <strong>
+          {editSession ? '編集中' : 'アクティブセル'}:{' '}
+          {cellAddress(editSession?.cell ?? activeCell)}
+        </strong>
+        <span>直接入力・Delete / Backspace・Ctrl+V（Macは⌘V）</span>
       </div>
 
       <div
         className="table-scroll"
         ref={gridRef}
         onPaste={(event) => {
+          if (editSession) return
           if (!event.clipboardData.types.includes('text/plain')) return
           event.preventDefault()
           onPasteRange(activeCell, event.clipboardData.getData('text/plain'))
@@ -186,27 +351,40 @@ export function DataGrid({
                 const badges = column
                   ? badgesByColumn.get(column.id) ?? []
                   : []
-                const address = cellAddress({ rowIndex: 0, columnIndex })
+                const cell = { rowIndex: 0, columnIndex }
+                const address = cellAddress(cell)
+                const editing = Boolean(editSession && sameCell(editSession.cell, cell))
                 return (
                   <th
                     scope="col"
                     key={column?.id ?? `empty-header-${columnIndex}`}
-                    {...cellProps({ rowIndex: 0, columnIndex })}
+                    {...cellProps(cell)}
                     className={`${badges.length > 0 ? 'is-bound-column' : ''} ${
-                      activeCell.rowIndex === 0 &&
-                      activeCell.columnIndex === columnIndex
-                        ? 'is-active-cell'
-                        : ''
-                    }`.trim() || undefined}
+                      sameCell(activeCell, cell) ? 'is-active-cell' : ''
+                    } ${editing ? 'is-editing-cell' : ''}`.trim() || undefined}
                     aria-label={`${address}: ${column?.name || '空の見出し'}`}
                   >
-                    <span className="column-heading-text">{column?.name ?? ''}</span>
-                    {badges.length > 0 && (
-                      <span className="binding-badges" aria-label={`割り当て: ${badges.join(', ')}`}>
-                        {badges.map((badge) => (
-                          <span className="binding-badge" key={badge}>{badge}</span>
-                        ))}
-                      </span>
+                    {editing ? (
+                      editorFor(cell)
+                    ) : (
+                      <>
+                        <span className="column-heading-text">{column?.name ?? ''}</span>
+                        {badges.length > 0 && (
+                          <span
+                            className="binding-badges"
+                            aria-label={`割り当て: ${badges.join(', ')}`}
+                          >
+                            {badges.map((badge) => (
+                              <span className="binding-badge" key={badge}>
+                                {badge}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {editing && editError && (
+                      <span className="cell-edit-error">{editError}</span>
                     )}
                   </th>
                 )
@@ -224,30 +402,26 @@ export function DataGrid({
                     const column = dataset?.columns[columnIndex]
                     const value =
                       row && column ? row.cells[column.id] ?? null : null
-                    const address = cellAddress({
-                      rowIndex: gridRowIndex,
-                      columnIndex,
-                    })
+                    const cell = { rowIndex: gridRowIndex, columnIndex }
+                    const address = cellAddress(cell)
                     const bindingClass =
                       column && badgesByColumn.has(column.id)
                         ? 'is-bound-column'
                         : ''
-                    const activeClass =
-                      activeCell.rowIndex === gridRowIndex &&
-                      activeCell.columnIndex === columnIndex
-                        ? 'is-active-cell'
-                        : ''
+                    const editing = Boolean(editSession && sameCell(editSession.cell, cell))
                     return (
                       <td
                         key={column?.id ?? `empty-${dataRowIndex}-${columnIndex}`}
-                        {...cellProps({
-                          rowIndex: gridRowIndex,
-                          columnIndex,
-                        })}
-                        className={`${bindingClass} ${activeClass}`.trim() || undefined}
+                        {...cellProps(cell)}
+                        className={`${bindingClass} ${
+                          sameCell(activeCell, cell) ? 'is-active-cell' : ''
+                        } ${editing ? 'is-editing-cell' : ''}`.trim() || undefined}
                         aria-label={`${address}: ${value === null ? '空' : String(value)}`}
                       >
-                        {displayCell(value)}
+                        {editing ? editorFor(cell) : displayCell(value)}
+                        {editing && editError && (
+                          <span className="cell-edit-error">{editError}</span>
+                        )}
                       </td>
                     )
                   })}
@@ -326,9 +500,9 @@ function ColumnSelect({
       >
         {allowNone && <option value="">なし</option>}
         {!allowNone && value === '' && <option value="">選択</option>}
-        {columns.map((column) => (
+        {columns.map((column, index) => (
           <option value={column.id} key={column.id}>
-            {column.name || '（空の見出し）'}
+            {column.name || `${columnLetter(index)}列（見出しなし）`}
           </option>
         ))}
       </select>

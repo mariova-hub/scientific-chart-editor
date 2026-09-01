@@ -641,3 +641,16 @@ Phase 3B-2はAxis ModelとschemaVersionを変更しない。X/Y軸はそれぞ�
 棒グラフでどちらがカテゴリ軸かは`chart.type`と`chart.bar.orientation`から派生し、Plotlyのaxis typeやrangeを保存しない。カテゴリ軸として表示中もAxis Modelの独立設定は破壊せず保持できるが、UIとRendererは適用しない。scatterやorientation変更で同じdimensionが数値軸へ戻った場合に、その意味設定を再利用できる。
 
 旧Phase 1〜3B-1の`0.1`ファイルは同じaxis fieldを既に持つため追加migrationを必要としない。欠落したPhase 2書式fieldだけを従来どおりdefault hydrationし、明示された不正range・unit・log境界は補正せずatomic load前に拒否する。
+
+## 20. Phase 3B-3 セル直接編集の保存契約
+
+Phase 3B-3はschema構造を変更せず`schemaVersion: "0.1"`を維持する。直接編集とセル消去の確定結果は、矩形Pasteと同じ既存Dataset fieldへ保存する。
+
+- 見出しの編集結果は`datasets[].columns[].name`へstringとして保存する。消去した見出しは空stringであり、UI用fallback labelは保存しない。
+- データセルの編集結果は`datasets[].rows[].cells[columnId]`へnumber / string / nullとして保存する。消去はnullであり、key自体や行を削除して表現しない。
+- 編集・消去では既存dataset / column / row IDを維持するため、X/Y/Y ErrorおよびCategory/Value/Error bindingの参照も変更しない。
+- number / string / nullの判定はPasteと共通の`parseCell`契約に従う。入力方法の違い、入力時のdraft、IME変換文字列の中間状態は保存形式へ影響しない。
+- Active Cell、Editing Cell、draft text、composition状態、focus、入力エラー、確定後の移動先、edit / clear操作履歴は保存しない。
+- 無効なX/Y/Value/Errorセルによる点除外、誤差範囲の全体非表示、警告件数は保存せず、読み込み後に元セル値とbindingから再計算する。
+
+したがってPhase 1〜3B-2ファイルには新fieldやmigrationを要求せず、従来どおり読み込める。直接編集後に保存したファイルも、既存のDataset validation、stable reference validation、atomic load契約だけで復元できる。

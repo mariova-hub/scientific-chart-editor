@@ -15,6 +15,8 @@ import type {
 export type ProjectAction =
   | { type: 'replace-dataset'; dataset: DatasetModel }
   | { type: 'paste-range'; dataset: DatasetModel }
+  | { type: 'edit-cell'; dataset: DatasetModel }
+  | { type: 'clear-cell'; dataset: DatasetModel }
   | {
       type: 'set-binding'
       role: 'x' | 'y' | 'yError' | 'category' | 'value' | 'barError'
@@ -130,7 +132,11 @@ export function projectReducer(
   if (action.type === 'replace-dataset') {
     return projectWithDataset(project, action.dataset)
   }
-  if (action.type === 'paste-range') {
+  if (
+    action.type === 'paste-range' ||
+    action.type === 'edit-cell' ||
+    action.type === 'clear-cell'
+  ) {
     return project.datasets.length === 0
       ? projectWithDataset(project, action.dataset)
       : touched({ ...project, datasets: [action.dataset] })

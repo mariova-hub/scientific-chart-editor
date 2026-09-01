@@ -559,3 +559,32 @@ NumberDraftInput
 ### 19.3 Model・Renderer・Persistence
 
 正規状態は既存Axis Modelの`scale.minimum/maximum: number | null`、`ticks.majorInterval: auto | fixed`、`ticks.minorInterval: none | auto | fixed`であり、Plotlyの`range`、`autorange`、`dtick`はAdapter内だけで生成する。Phase 3B-2はschema fieldを追加せず`schemaVersion: "0.1"`を維持する。旧readerで必須だった軸fieldと既存default hydrationを変更しない。
+
+## 20. Phase 3B-3 Cell Edit境界
+
+### 20.1 Session Stateと編集開始
+
+Data Gridは永続Project Stateとは別に、Active Cell、`CellEditSession { cell, draft }`、IME composition状態を持つ。ダブルクリック・Enter・F2ではDatasetから現在値を文字列として読み出し、通常文字入力では入力された最初の文字だけをdraftにして編集を開始する。React componentはdraftを描画するだけでDatasetを直接mutateしない。
+
+```text
+Active Cell + edit trigger
+  → CellEditSession start / change（Session State）
+  → Enter / Tab / blur
+  → applyCellEdit（parseCell + candidate Dataset）
+  → candidate Projectの既存検証
+  → edit-cell ProjectActionを1回dispatch
+```
+
+EscapeはSession Stateだけを破棄するため、元Datasetを復元する処理自体を必要としない。IME composition中のkeydownは`isComposing`、composition eventで管理するref、互換用`keyCode: 229`で判定し、Enter / Tabを確定操作に変換しない。
+
+### 20.2 単一セル更新とID・binding
+
+`applyCellValue`は既存セルの場合、対象`ColumnModel`または`RowModel.cells[columnId]`だけをimmutableに複製する。Dataset ID、既存Column ID、既存Row IDは再生成しない。現在範囲外の単一セル編集は既存`applyRectangularPaste`へ1×1候補として委譲し、同じ上限・atomic拡張規則を利用する。
+
+見出しセルのnullは空string、データセルの消去はnullである。Reducerの`edit-cell` / `clear-cell` actionは候補Dataset snapshotを一度だけ反映し、Chart Modelとstable column ID bindingを変更しない。Renderer用点列、無効誤差件数、警告は更新後のProjectから再導出する。
+
+### 20.3 Keyboard・Paste責務
+
+非編集中はArrow / TabをActive Cell移動、Enter / F2を編集開始、Delete / Backspaceを単一セル消去として扱う。編集中はinputへArrow / Backspaceを委ね、Enter / Shift+EnterとTab / Shift+Tabを確定・移動、Escapeをcancelとして扱う。editorのpaste eventはGridへ伝播させず通常のテキスト挿入とし、非編集中のGrid paste eventだけをPhase 3B-1のRectangular Paste pipelineへ渡す。
+
+この分離により、直接編集、消去、矩形Pasteはいずれも操作単位のReducer actionになり、将来のhistory層はDOMイベントやセルごとの中間変更を記録せず確定snapshotだけを扱える。
