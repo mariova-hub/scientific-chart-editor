@@ -307,17 +307,43 @@ export function formatDataRowLabel(
   rowIndex: number,
   labelColumnId: string | null,
 ): string {
-  const validLabelColumnId = labelColumnId &&
+  const resolvedLabelColumnId = labelColumnId &&
     dataset.columns.some((column) => column.id === labelColumnId)
     ? labelColumnId
-    : null
-  const label = validLabelColumnId
-    ? row.cells[validLabelColumnId] ?? null
+    : dataset.columns[0]?.id ?? null
+  const label = resolvedLabelColumnId
+    ? row.cells[resolvedLabelColumnId] ?? null
     : null
   const suffix = label === null || String(label).trim() === ''
     ? ''
     : `（${String(label)}）`
   return `${rowIndex + 2}行目${suffix}`
+}
+
+export function formatCategoryHeaderRange(
+  dataset: DatasetModel,
+  startColumnId: string | null,
+  endColumnId: string | null,
+): string {
+  const startIndex = dataset.columns.findIndex(
+    (column) => column.id === startColumnId,
+  )
+  const endIndex = dataset.columns.findIndex(
+    (column) => column.id === endColumnId,
+  )
+  if (startIndex < 0 || endIndex < startIndex) return '未設定'
+  return `${spreadsheetColumnName(startIndex)}1:${spreadsheetColumnName(endIndex)}1`
+}
+
+function spreadsheetColumnName(columnIndex: number): string {
+  let index = columnIndex + 1
+  let name = ''
+  while (index > 0) {
+    const remainder = (index - 1) % 26
+    name = String.fromCharCode(65 + remainder) + name
+    index = Math.floor((index - 1) / 26)
+  }
+  return name
 }
 
 export function isCategoryAxis(

@@ -688,3 +688,12 @@ Phase 3B-4 writerは`schemaVersion: "0.1"`を維持し、ChartへScientific Char
 - Runtime validationはenum、dataset ID、各row / column ID、category startがend以前であることを検証する。broken referenceまたは逆順範囲は補正せず拒否する。
 
 Phase 1〜3B-3の`0.1`ファイルで`dataOrientation`と`barRowBindings`が欠落する場合だけ、それぞれ`columns`と全field nullのrow bindingを補う。既存`barBindings`は変更しない。明示された不正enum・型・参照をdefault hydrationで救済せず、validation成功後だけProject Stateへatomic loadする。
+
+## 22. Phase 3B-5 表示用語整理と保存形式
+
+Phase 3B-5はProject JSONを変更せず、`schemaVersion: "0.1"`とPhase 3B-4の`barRowBindings`をそのまま使用する。
+
+- UIの「カテゴリ範囲」は既存`categoryStartColumnId` / `categoryEndColumnId`をまとめた表示概念である。`B1:F1`等の列記号・行番号文字列はDataset順から派生し、保存しない。
+- UIの「値」「誤差範囲」は既存`valueRowId` / `errorRowId`を使用する。誤差範囲の「なし」は`errorRowId: null`であり、broken referenceとは異なる。
+- `labelColumnId`は通常UIから非表示にするが、既存ファイルの値を保持する。有効な保存値がなければ表示時だけ先頭columnを候補とし、補完IDや`2行目（平均）`等の表示文字列をProjectへ書き戻さない。
+- Phase 1〜3B-4ファイルのhydration、runtime validation、atomic load、unknown field処理は変更しない。UI変更だけを理由とするmigrationは行わない。

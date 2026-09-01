@@ -370,3 +370,14 @@ Phase 3B-3では範囲選択、copy、cut、複数セル消去、数式、行列
 - Scatter rows modeはPhase 3B-4では未対応とし、UIで選択不能にする。rows modeからscatterへ変更する場合はデータ方向を安全な`columns`へ戻し、保存済みrow bindingは将来再利用できるよう保持する。
 
 Phase 3B-4ではData Grid自体の転置、複数Value row、複数系列、grouped / stacked barsへは横展開しない。
+
+## 17. Phase 3B-5で確定したrows mode表示用語
+
+- 永続Modelのcategory start / end column ID、value / error row ID、label column IDと、ユーザー向けの操作用語を分離する。rows modeで提示する意味は「カテゴリ範囲」「値」「誤差範囲」である。
+- カテゴリは1つの意味的な「カテゴリ範囲」として扱い、表計算形式の`B1:F1`を表示する。Phase 3B-5では同じfield内の「開始」「終了」selectorで指定し、将来のData Grid範囲選択へ置換可能にする。
+- 行ラベル列は通常UIへ表示しない。有効な保存済みlabel column ID、先頭列、行番号の順で表示名を自動解決し、string / numberのラベルがあれば`2行目（平均）`、なければ`2行目`と表示する。
+- 誤差を使用しない状態は「誤差範囲: なし」として明示し、不正参照や無効な誤差値とは区別する。
+- columns modeの単一棒系列も「カテゴリ」「値」「誤差範囲」とし、rows modeとの意味対応を保つ。Data OrientationのUI名は引き続き「データ系列の方向: 列／行」とする。
+- `CATEGORY` / `VALUE` / `ERR`のGrid badge、stable ID binding、Dataset非転置、Error validationはUI用語変更によって変更しない。
+
+Phase 3B-5ではData Grid範囲選択、row label列の詳細設定、Scatter rows mode、複数系列へは横展開しない。

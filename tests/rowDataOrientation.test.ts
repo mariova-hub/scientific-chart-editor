@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyCellEdit, clearGridCell } from '../src/data/grid/editCell'
 import {
+  formatCategoryHeaderRange,
   formatDataRowLabel,
   resolveBarSeries,
 } from '../src/model/dataBinding'
@@ -39,6 +40,52 @@ describe('row-oriented bar binding', () => {
     const labelColumnId = project.chart.series[0].barRowBindings.labelColumnId
     expect(formatDataRowLabel(dataset, dataset.rows[0], 0, labelColumnId)).toBe('2行目（平均）')
     expect(formatDataRowLabel(dataset, dataset.rows[1], 1, labelColumnId)).toBe('3行目（SD）')
+  })
+
+  it('falls back to the first column when the stored row label column is unavailable', () => {
+    const project = sampleRowBarProject()
+    const dataset = project.datasets[0]
+    expect(formatDataRowLabel(dataset, dataset.rows[0], 0, null)).toBe('2行目（平均）')
+    expect(formatDataRowLabel(dataset, dataset.rows[1], 1, 'missing')).toBe('3行目（SD）')
+  })
+
+  it.each([null, '   '])('falls back to the row number for a missing label value', (label) => {
+    const project = sampleRowBarProject()
+    const dataset = project.datasets[0]
+    const labelColumnId = dataset.columns[0].id
+    dataset.rows[0].cells[labelColumnId] = label
+    expect(formatDataRowLabel(dataset, dataset.rows[0], 0, labelColumnId)).toBe('2行目')
+  })
+
+  it('displays a numeric row label', () => {
+    const project = sampleRowBarProject()
+    const dataset = project.datasets[0]
+    const labelColumnId = dataset.columns[0].id
+    dataset.rows[0].cells[labelColumnId] = 42
+    expect(formatDataRowLabel(dataset, dataset.rows[0], 0, labelColumnId)).toBe('2行目（42）')
+  })
+
+  it('formats the category columns as one spreadsheet range', () => {
+    const project = sampleRowBarProject()
+    const dataset = project.datasets[0]
+    const binding = project.chart.series[0].barRowBindings
+    expect(formatCategoryHeaderRange(
+      dataset,
+      binding.categoryStartColumnId,
+      binding.categoryEndColumnId,
+    )).toBe('B1:F1')
+    expect(formatCategoryHeaderRange(dataset, null, binding.categoryEndColumnId)).toBe('未設定')
+  })
+
+  it('keeps an explicit no-error selection distinct from an invalid error reference', () => {
+    let project = sampleRowBarProject()
+    project = projectReducer(project, {
+      type: 'set-row-binding',
+      role: 'error',
+      rowId: null,
+    })
+    expect(project.chart.series[0].barRowBindings.errorRowId).toBeNull()
+    expect(resolveBarSeries(project, project.chart.series[0]).showErrorBars).toBe(false)
   })
 
   it('uses only the explicit continuous category range', () => {

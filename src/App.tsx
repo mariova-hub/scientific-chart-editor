@@ -180,7 +180,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3B-4</span>
+        <span className="phase-badge">v0.1 · Phase 3B-5</span>
       </header>
 
       <Toolbar
@@ -217,9 +217,6 @@ function App() {
           }
           onSelectRowBinding={(role, rowId) =>
             handleProjectAction({ type: 'set-row-binding', role, rowId })
-          }
-          onSelectRowLabelColumn={(columnId) =>
-            handleProjectAction({ type: 'set-row-label-column', columnId })
           }
         />
         <PaneResizeHandle

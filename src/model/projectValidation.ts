@@ -62,41 +62,43 @@ function validateBarRowBindings(
     columnId === null
       ? -1
       : dataset.columns.findIndex((column) => column.id === columnId)
-  if (requireCompleteBinding && !binding.categoryStartColumnId) {
-    issues.push(issue('binding.required', `${path}.categoryStartColumnId`, 'カテゴリの開始列を選択してください。'))
-  } else if (
+  if (
+    requireCompleteBinding &&
+    (!binding.categoryStartColumnId || !binding.categoryEndColumnId)
+  ) {
+    issues.push(issue('binding.required', path, 'カテゴリ範囲を指定してください。'))
+  }
+  if (
     binding.categoryStartColumnId !== null &&
     columnIndex(binding.categoryStartColumnId) < 0
   ) {
-    issues.push(issue('reference.column', `${path}.categoryStartColumnId`, 'カテゴリの開始列が存在しません。'))
+    issues.push(issue('reference.column', `${path}.categoryStartColumnId`, 'カテゴリ範囲の参照先が存在しません。'))
   }
-  if (requireCompleteBinding && !binding.categoryEndColumnId) {
-    issues.push(issue('binding.required', `${path}.categoryEndColumnId`, 'カテゴリの終了列を選択してください。'))
-  } else if (
+  if (
     binding.categoryEndColumnId !== null &&
     columnIndex(binding.categoryEndColumnId) < 0
   ) {
-    issues.push(issue('reference.column', `${path}.categoryEndColumnId`, 'カテゴリの終了列が存在しません。'))
+    issues.push(issue('reference.column', `${path}.categoryEndColumnId`, 'カテゴリ範囲の参照先が存在しません。'))
   }
   const startIndex = columnIndex(binding.categoryStartColumnId)
   const endIndex = columnIndex(binding.categoryEndColumnId)
   if (startIndex >= 0 && endIndex >= 0 && startIndex > endIndex) {
-    issues.push(issue('binding.categoryRange', `${path}.categoryStartColumnId`, 'カテゴリの開始列は終了列以前にしてください。'))
+    issues.push(issue('binding.categoryRange', `${path}.categoryStartColumnId`, 'カテゴリ範囲が正しい順序になっていません。'))
   }
 
   if (requireCompleteBinding && !binding.valueRowId) {
-    issues.push(issue('binding.required', `${path}.valueRowId`, '値の行を選択してください。'))
+    issues.push(issue('binding.required', `${path}.valueRowId`, '値を選択してください。'))
   } else if (
     binding.valueRowId !== null &&
     !dataset.rows.some((row) => row.id === binding.valueRowId)
   ) {
-    issues.push(issue('reference.row', `${path}.valueRowId`, '値の行が存在しません。'))
+    issues.push(issue('reference.row', `${path}.valueRowId`, '値の参照先が存在しません。'))
   }
   if (
     binding.errorRowId !== null &&
     !dataset.rows.some((row) => row.id === binding.errorRowId)
   ) {
-    issues.push(issue('reference.row', `${path}.errorRowId`, '誤差の行が存在しません。'))
+    issues.push(issue('reference.row', `${path}.errorRowId`, '誤差範囲の参照先が存在しません。'))
   }
   if (
     binding.labelColumnId !== null &&

@@ -161,7 +161,9 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
               <strong>表を貼り付けてください</strong>
               <span>
                 {project.chart.type === 'bar'
-                  ? 'カテゴリ列と値の列を選ぶと棒グラフを生成します。'
+                  ? project.chart.dataOrientation === 'rows'
+                    ? 'カテゴリ範囲と値を選ぶと棒グラフを生成します。'
+                    : 'カテゴリと値を選ぶと棒グラフを生成します。'
                   : 'X列とY列を選ぶと散布図を生成します。'}
               </span>
             </div>

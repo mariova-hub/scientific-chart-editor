@@ -633,6 +633,21 @@ Persistence validationはdata orientation enum、dataset / row / column参照、
 
 ### 21.4 UIと切替
 
-Data Paneは「データ系列の方向」の列／行radioを持つ。columns modeは列選択、rows modeはカテゴリ開始・終了列、行ラベル列、値の行、誤差の行を提示する。Gridはカテゴリcolumn headerに`CATEGORY`、value row headerに`VALUE`、error row headerに`ERR`の文字badgeを表示する。
+Data Paneは「データ系列の方向」の列／行radioを持つ。columns modeはカテゴリ・値・誤差範囲、rows modeはカテゴリ範囲・値・誤差範囲を提示する。Gridはカテゴリcolumn headerに`CATEGORY`、value row headerに`VALUE`、error row headerに`ERR`の文字badgeを表示する。
 
 `set-data-orientation` actionはinactive側bindingを破棄しない一方、columnsとrowsの間で意味bindingを自動変換しない。Scatterではrows選択を無効化し、rows状態からScatterへ変更するactionは`dataOrientation`だけをcolumnsへ戻す。この構造により、Dataset転置や誤った自動割当を行わず、将来Scatter rows resolverを同じChart fieldへ追加できる。
+
+## 22. Phase 3B-5 rows mode表示境界
+
+Phase 3B-5では`BarRowBindings`を変更せず、Data Paneに表示用のtranslation境界を置く。`categoryStartColumnId`と`categoryEndColumnId`は1つの「カテゴリ範囲」fieldとして描画し、stable IDから現在のDataset順を解決して`B1:F1`形式を派生表示する。開始・終了selectorは暫定入力部品であり、将来は同じfieldのcallbackをGrid範囲選択へ接続できる。
+
+`labelColumnId`はProject Model内の表示補助参照であり、通常UIの編集対象にしない。行候補label helperは次の順序で解決する。
+
+```text
+有効な保存済みlabelColumnId
+  → なければDataset先頭column ID
+  → 対象cellがstring / numberなら行番号へ併記
+  → null / 空文字なら行番号だけ
+```
+
+この表示helperはDatasetやbindingを変更しない。Value / Errorのselectorは同じhelperを利用して「値」「誤差範囲」として表示し、Errorのnull bindingは「なし」とする。Model enum、Reducerのstable ID action、runtime validation、Resolver、Plotly Adapter、PersistenceはPhase 3B-4のままである。

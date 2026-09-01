@@ -17,6 +17,7 @@ import {
   type ActiveCell,
 } from '../../data/grid/pasteRange'
 import {
+  formatCategoryHeaderRange,
   formatDataRowLabel,
   resolveBarSeries,
   resolveScatterSeries,
@@ -44,7 +45,6 @@ interface DataGridProps {
     columnId: string | null,
   ) => void
   onSelectRowBinding: (role: RowBindingRole, rowId: string | null) => void
-  onSelectRowLabelColumn: (columnId: string | null) => void
 }
 
 const MAX_VISIBLE_DATA_ROWS = 100
@@ -75,7 +75,6 @@ export function DataGrid({
   onDataOrientationChange,
   onSelectRowCategoryBound,
   onSelectRowBinding,
-  onSelectRowLabelColumn,
 }: DataGridProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>({
     rowIndex: 0,
@@ -520,37 +519,50 @@ export function DataGrid({
                 : '行方向は現在、棒グラフで利用できます。'}
             </p>
           </fieldset>
-          <div className="binding-grid" aria-label="データ列の割り当て">
+          <div
+            className={`binding-grid ${
+              project.chart.type === 'bar' && project.chart.dataOrientation === 'rows'
+                ? 'row-binding-grid'
+                : ''
+            }`.trim()}
+            aria-label="グラフデータの割り当て"
+          >
             {project.chart.type === 'bar' && project.chart.dataOrientation === 'rows' ? (
               <>
-                <ColumnSelect
-                  label="カテゴリ開始列"
-                  value={series.barRowBindings.categoryStartColumnId ?? ''}
-                  columns={dataset.columns}
-                  onChange={(columnId) => onSelectRowCategoryBound('start', columnId)}
-                />
-                <ColumnSelect
-                  label="カテゴリ終了列"
-                  value={series.barRowBindings.categoryEndColumnId ?? ''}
-                  columns={dataset.columns}
-                  onChange={(columnId) => onSelectRowCategoryBound('end', columnId)}
-                />
-                <ColumnSelect
-                  label="行ラベル列"
-                  value={series.barRowBindings.labelColumnId ?? ''}
-                  columns={dataset.columns}
-                  allowNone
-                  onChange={onSelectRowLabelColumn}
-                />
+                <fieldset className="category-range-field">
+                  <legend>カテゴリ範囲</legend>
+                  <output aria-label="現在のカテゴリ範囲">
+                    {formatCategoryHeaderRange(
+                      dataset,
+                      series.barRowBindings.categoryStartColumnId,
+                      series.barRowBindings.categoryEndColumnId,
+                    )}
+                  </output>
+                  <div className="category-range-selectors">
+                    <RangeColumnSelect
+                      label="開始"
+                      value={series.barRowBindings.categoryStartColumnId ?? ''}
+                      columns={dataset.columns}
+                      onChange={(columnId) => onSelectRowCategoryBound('start', columnId)}
+                    />
+                    <span className="range-separator" aria-hidden="true">～</span>
+                    <RangeColumnSelect
+                      label="終了"
+                      value={series.barRowBindings.categoryEndColumnId ?? ''}
+                      columns={dataset.columns}
+                      onChange={(columnId) => onSelectRowCategoryBound('end', columnId)}
+                    />
+                  </div>
+                </fieldset>
                 <RowSelect
-                  label="値の行"
+                  label="値"
                   value={series.barRowBindings.valueRowId ?? ''}
                   dataset={dataset}
                   labelColumnId={series.barRowBindings.labelColumnId}
                   onChange={(rowId) => onSelectRowBinding('value', rowId)}
                 />
                 <RowSelect
-                  label="誤差の行"
+                  label="誤差範囲"
                   value={series.barRowBindings.errorRowId ?? ''}
                   dataset={dataset}
                   labelColumnId={series.barRowBindings.labelColumnId}
@@ -560,9 +572,9 @@ export function DataGrid({
               </>
             ) : project.chart.type === 'bar' ? (
               <>
-                <ColumnSelect label="カテゴリ列" value={series.barBindings.category?.columnId ?? ''} columns={dataset.columns} onChange={(columnId) => onSelectColumn('category', columnId)} />
-                <ColumnSelect label="値の列" value={series.barBindings.value?.columnId ?? ''} columns={dataset.columns} onChange={(columnId) => onSelectColumn('value', columnId)} />
-                <ColumnSelect label="誤差の列" value={series.barBindings.error?.columnId ?? ''} columns={dataset.columns} allowNone onChange={(columnId) => onSelectColumn('barError', columnId)} />
+                <ColumnSelect label="カテゴリ" value={series.barBindings.category?.columnId ?? ''} columns={dataset.columns} onChange={(columnId) => onSelectColumn('category', columnId)} />
+                <ColumnSelect label="値" value={series.barBindings.value?.columnId ?? ''} columns={dataset.columns} onChange={(columnId) => onSelectColumn('value', columnId)} />
+                <ColumnSelect label="誤差範囲" value={series.barBindings.error?.columnId ?? ''} columns={dataset.columns} allowNone onChange={(columnId) => onSelectColumn('barError', columnId)} />
               </>
             ) : (
               <>
@@ -582,7 +594,7 @@ export function DataGrid({
           {((bar?.invalidErrorRowIds.length ?? 0) > 0 ||
             (scatter?.invalidErrorRowIds.length ?? 0) > 0) && (
             <div className="data-warning" role="alert">
-              誤差の{project.chart.type === 'bar' && project.chart.dataOrientation === 'rows' ? '行' : '列'}に無効値（空、非数値、非有限値、負値）が
+              誤差範囲に無効値（空、非数値、非有限値、負値）が
               {bar?.invalidErrorRowIds.length ?? scatter?.invalidErrorRowIds.length}
               件あります。この系列の誤差範囲全体を表示していません。
               {project.chart.type === 'bar' ? '棒' : '散布点'}と元データは維持されています。
@@ -591,6 +603,37 @@ export function DataGrid({
         </>
       )}
     </section>
+  )
+}
+
+interface RangeColumnSelectProps {
+  label: string
+  value: string
+  columns: { id: string; name: string }[]
+  onChange: (columnId: string | null) => void
+}
+
+function RangeColumnSelect({
+  label,
+  value,
+  columns,
+  onChange,
+}: RangeColumnSelectProps) {
+  return (
+    <label className="control-label range-column-select">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value || null)}
+      >
+        {value === '' && <option value="">選択</option>}
+        {columns.map((column, index) => (
+          <option value={column.id} key={column.id}>
+            {columnLetter(index)}（{column.name || '見出しなし'}）
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
