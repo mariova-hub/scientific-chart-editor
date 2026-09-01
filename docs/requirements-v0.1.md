@@ -303,3 +303,17 @@ Phase 2では単一散布図の書式編集基盤として次を確定した。
 - 色の正規形は`#RRGGBB`とし、明示された不正色は読み込み時に拒否する。
 
 Phase 2でも棒・折れ線グラフ、複数系列、回帰、Xエラーバー等へは横展開しない。
+
+## 12. Phase 3Aで確定した棒グラフ・Data Grid規則
+
+- 現在のグラフ種類は`scatter`または`bar`とし、縦棒／横棒は別種類にせず`bar.orientation`（`vertical` / `horizontal`）で表す。
+- 棒系列は散布図のX/Yとは別にCategory / Value / Errorという意味bindingを持つ。方向変更はbindingを変更せず、縦棒ではCategory→X・Value→Y・Error→Y、横棒ではValue→X・Category→Y・Error→Xへ描画時に対応させる。
+- Categoryは有限numberまたはstring、Valueは有限numberを受け入れる。CategoryまたはValueが不正な行は描画対象外とするが元データは保持し、除外件数を表示する。
+- Errorが指定された描画対象行では、全値が0以上の有限numberでなければならない。1件でも不正なら全ての棒の誤差範囲を非表示にして件数を警告する。0は有効値であり、不正値を0へ置換しない。
+- カテゴリ軸ではmin/max、major/minor interval、linear/log等の数値軸専用設定をUIで提示せず、Rendererにも適用しない。値軸はPhase 2の軸書式を継続利用する。
+- 値軸の明示minimumが0以外でも描画と保存を許可するが、比較の見え方が強調される可能性を非ブロッキング警告で示し、値を自動補正しない。
+- 棒書式は塗り色、枠線色、枠線幅、不透明度、棒幅、およびグラフ単位の棒間隔を意味値として保存する。
+- Data Gridは固定見出し・固定行番号、縦横スクロール、128px以上の基本列幅、13px文字、38px行高を提供する。利用中の列は背景だけでなく`X` / `Y` / `ERR`または`CATEGORY` / `VALUE` / `ERR`ラベルで示す。
+- Data Pane幅は320〜720pxでドラッグまたはキーボード調整できるSession Stateとし、プロジェクトには保存しない。グラフ寸法のドラッグリサイズとは別の責務である。
+
+Phase 3Aは単一系列の棒グラフに限定し、複数系列、grouped / stacked bars、回帰、非対称誤差等には横展開しない。

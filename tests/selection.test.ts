@@ -12,7 +12,7 @@ describe('chart selection', () => {
     const selections = [
       { type: 'axis', axisId: project.chart.axes[0].id } as const,
       { type: 'series', seriesId: project.chart.series[0].id } as const,
-      { type: 'error-bars', seriesId: project.chart.series[0].id, direction: 'y' } as const,
+      { type: 'error-bars', seriesId: project.chart.series[0].id, direction: 'value' } as const,
     ]
     for (const selection of selections) {
       expect(selectionFromKey(project, selectionKey(selection))).toEqual(selection)

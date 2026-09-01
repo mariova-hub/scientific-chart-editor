@@ -107,8 +107,8 @@ export function validateProjectSemantics(
     issues.push(issue('dataset.rows', 'project.datasets[0].rows', '行数が許容範囲外です。'))
   }
 
-  if (project.chart.type !== 'scatter') {
-    issues.push(issue('chart.type', 'project.chart.type', 'Phase 1では散布図だけを読み込めます。'))
+  if (project.chart.type !== 'scatter' && project.chart.type !== 'bar') {
+    issues.push(issue('chart.type', 'project.chart.type', '対応していないグラフの種類です。'))
   }
   if (project.chart.axes.length !== 2) {
     issues.push(issue('axis.count', 'project.chart.axes', 'X軸とY軸が1つずつ必要です。'))
@@ -124,38 +124,70 @@ export function validateProjectSemantics(
   issues.push(...validateLogAxes(project))
 
   const series = project.chart.series[0]
-  issues.push(...validateBinding(project, series.bindings.x, 'project.chart.series[0].bindings.x'))
-  issues.push(...validateBinding(project, series.bindings.y, 'project.chart.series[0].bindings.y'))
+  const primaryBinding =
+    project.chart.type === 'bar'
+      ? series.barBindings.category
+      : series.bindings.x
+  const secondaryBinding =
+    project.chart.type === 'bar' ? series.barBindings.value : series.bindings.y
+  const primaryPath =
+    project.chart.type === 'bar'
+      ? 'project.chart.series[0].barBindings.category'
+      : 'project.chart.series[0].bindings.x'
+  const secondaryPath =
+    project.chart.type === 'bar'
+      ? 'project.chart.series[0].barBindings.value'
+      : 'project.chart.series[0].bindings.y'
+  issues.push(...validateBinding(project, primaryBinding, primaryPath))
+  issues.push(...validateBinding(project, secondaryBinding, secondaryPath))
 
   const axisIds = new Set(project.chart.axes.map((axis) => axis.id))
   if (!axisIds.has(series.axisIds.x) || !axisIds.has(series.axisIds.y)) {
     issues.push(issue('reference.axis', 'project.chart.series[0].axisIds', '系列の参照軸が存在しません。'))
   }
 
-  if (series.bindings.x && series.bindings.y) {
-    const xLength = resolveDataRange(project.datasets, series.bindings.x).length
-    const yLength = resolveDataRange(project.datasets, series.bindings.y).length
-    if (xLength !== yLength) {
-      issues.push(issue('binding.length', 'project.chart.series[0].bindings', 'X列とY列の範囲長が一致しません。'))
+  if (primaryBinding && secondaryBinding) {
+    const primaryLength = resolveDataRange(project.datasets, primaryBinding).length
+    const secondaryLength = resolveDataRange(project.datasets, secondaryBinding).length
+    if (primaryLength !== secondaryLength) {
+      issues.push(issue(
+        'binding.length',
+        project.chart.type === 'bar'
+          ? 'project.chart.series[0].barBindings'
+          : 'project.chart.series[0].bindings',
+        project.chart.type === 'bar'
+          ? 'カテゴリ列と値の列の範囲長が一致しません。'
+          : 'X列とY列の範囲長が一致しません。',
+      ))
     }
   }
 
-  if (series.errorBars.y.enabled) {
-    if (!series.errorBars.y.value) {
-      issues.push(issue('errorBar.required', 'project.chart.series[0].errorBars.y.value', 'Y Error列を選択してください。'))
-    } else {
-      issues.push(...validateBinding(project, series.errorBars.y.value.source, 'project.chart.series[0].errorBars.y.value.source'))
-      if (series.bindings.x) {
-        const xLength = resolveDataRange(project.datasets, series.bindings.x).length
-        const errorLength = resolveDataRange(
-          project.datasets,
-          series.errorBars.y.value.source,
-        ).length
-        if (xLength !== errorLength) {
-          issues.push(issue('errorBar.length', 'project.chart.series[0].errorBars.y', 'Y Error列の範囲長がX/Y列と一致しません。'))
-        }
+  const errorBinding =
+    project.chart.type === 'bar'
+      ? series.barBindings.error
+      : series.errorBars.y.enabled
+        ? series.errorBars.y.value?.source ?? null
+        : null
+  if (errorBinding) {
+    const errorPath = project.chart.type === 'bar'
+      ? 'project.chart.series[0].barBindings.error'
+      : 'project.chart.series[0].errorBars.y.value.source'
+    issues.push(...validateBinding(project, errorBinding, errorPath))
+    if (primaryBinding) {
+      const primaryLength = resolveDataRange(project.datasets, primaryBinding).length
+      const errorLength = resolveDataRange(project.datasets, errorBinding).length
+      if (primaryLength !== errorLength) {
+        issues.push(issue(
+          'errorBar.length',
+          errorPath,
+          project.chart.type === 'bar'
+            ? '誤差の列の範囲長がカテゴリ列・値の列と一致しません。'
+            : 'Y Error列の範囲長がX/Y列と一致しません。',
+        ))
       }
     }
+  } else if (project.chart.type === 'scatter' && series.errorBars.y.enabled) {
+    issues.push(issue('errorBar.required', 'project.chart.series[0].errorBars.y.value', 'Y Error列を選択してください。'))
   }
 
   const styleChecks: Array<[boolean, string, string]> = [
@@ -180,6 +212,9 @@ export function validateProjectSemantics(
     [series.style.marker.borderWidthPx, STYLE_LIMITS.minBorderWidthPx, STYLE_LIMITS.maxBorderWidthPx, 'project.chart.series[0].style.marker.borderWidthPx'],
     [series.style.line.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].style.line.widthPx'],
     [series.style.bar.borderWidthPx, STYLE_LIMITS.minBorderWidthPx, STYLE_LIMITS.maxBorderWidthPx, 'project.chart.series[0].style.bar.borderWidthPx'],
+    [series.style.bar.opacity, 0, 1, 'project.chart.series[0].style.bar.opacity'],
+    [series.style.bar.widthRatio, 0.05, 1, 'project.chart.series[0].style.bar.widthRatio'],
+    [project.chart.bar.gapRatio, 0, 0.9, 'project.chart.bar.gapRatio'],
     [series.errorBars.x.style.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].errorBars.x.style.widthPx'],
     [series.errorBars.x.style.capSizePx, STYLE_LIMITS.minCapSizePx, STYLE_LIMITS.maxCapSizePx, 'project.chart.series[0].errorBars.x.style.capSizePx'],
     [series.errorBars.y.style.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].errorBars.y.style.widthPx'],
@@ -230,4 +265,21 @@ export function validateProjectSemantics(
   })
 
   return issues
+}
+
+export function getProjectWarnings(project: ProjectState): ValidationIssue[] {
+  if (project.chart.type !== 'bar') return []
+  const valueDimension =
+    project.chart.bar.orientation === 'vertical' ? 'y' : 'x'
+  const valueAxis = project.chart.axes.find(
+    (axis) => axis.dimension === valueDimension,
+  )
+  if (!valueAxis || valueAxis.scale.minimum === null || valueAxis.scale.minimum === 0) {
+    return []
+  }
+  return [issue(
+    'bar.baseline.nonzero',
+    `project.chart.axes.${valueAxis.id}.scale.minimum`,
+    '棒グラフの値軸が0から始まっていません。比較の見え方が強調される可能性があります。',
+  )]
 }

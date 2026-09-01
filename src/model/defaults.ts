@@ -59,3 +59,20 @@ export function defaultChartStyle() {
     plotBackgroundColor: '#ffffff',
   }
 }
+
+export function defaultBarStyle(): SeriesModel['style']['bar'] {
+  return {
+    fillColor: '#2563eb',
+    borderColor: '#1d4ed8',
+    borderWidthPx: 1,
+    opacity: 1,
+    widthRatio: 0.8,
+  }
+}
+
+export function defaultBarOptions() {
+  return {
+    orientation: 'vertical' as const,
+    gapRatio: 0.2,
+  }
+}

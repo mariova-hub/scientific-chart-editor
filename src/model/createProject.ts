@@ -8,6 +8,8 @@ import type {
 import {
   defaultAxisLabels,
   defaultAxisLine,
+  defaultBarOptions,
+  defaultBarStyle,
   defaultChartStyle,
   defaultErrorBarStyle,
   defaultLineStyle,
@@ -74,6 +76,7 @@ export function createEmptyProject(
     chart: {
       id: idFactory(),
       type: 'scatter',
+      bar: defaultBarOptions(),
       title: {
         visible: true,
         text: 'Scientific chart',
@@ -89,16 +92,13 @@ export function createEmptyProject(
           name: 'Series 1',
           visible: true,
           bindings: { x: null, y: null },
+          barBindings: { category: null, value: null, error: null },
           axisIds: { x: xAxis.id, y: yAxis.id },
           style: {
             color: '#2563eb',
             line: defaultLineStyle(),
             marker: defaultMarkerStyle(),
-            bar: {
-              fillColor: '#2563eb',
-              borderColor: '#1d4ed8',
-              borderWidthPx: 1,
-            },
+            bar: defaultBarStyle(),
           },
           errorBars: {
             x: {
@@ -145,6 +145,11 @@ export function projectWithDataset(
           bindings: {
             x: xColumn ? createDataRange(dataset.id, xColumn.id) : null,
             y: yColumn ? createDataRange(dataset.id, yColumn.id) : null,
+          },
+          barBindings: {
+            category: xColumn ? createDataRange(dataset.id, xColumn.id) : null,
+            value: yColumn ? createDataRange(dataset.id, yColumn.id) : null,
+            error: null,
           },
           errorBars: {
             ...series.errorBars,

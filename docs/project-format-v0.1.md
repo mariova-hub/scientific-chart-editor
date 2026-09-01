@@ -221,14 +221,7 @@ X、Y、誤差値等の1次元範囲は次の形で参照する。
 }
 ```
 
-`type`のv0.1 enumは次とする。
-
-- `scatter`
-- `line`
-- `column`
-- `bar`
-
-`bar`は横棒、`column`は縦棒を意味する。Plotlyのtrace type名とは独立したScientific Chart Editorの値である。
+Phase 3A writerが使用する`type`のenumは`scatter`または`bar`である。棒グラフは方向別の種類を重複させず、`chart.bar.orientation`を`vertical`または`horizontal`として保存する。初期設計案の`column`はwriter値として採用しない。折れ線は後続Phaseで別variantとして追加する。いずれもPlotlyのtrace typeや`v` / `h`とは独立したScientific Chart Editorの値である。
 
 `widthPx`と`heightPx`は有限の正の整数とし、UIが許容する最小・最大値の範囲内でなければならない。上限は実装開始前に確定する。
 
@@ -584,3 +577,41 @@ Plotly固有の`dashdot`や凡例座標は保存しない。
 ### 16.2 保存対象と非保存対象
 
 軸線・目盛・grid・label、marker・line、Y error style、chart background、plot background、title style、legend position、および確定したchart sizeは保存対象である。Selection、数値入力draft、警告、ドラッグ中preview、Y Errorの派生表示可否は保存しない。読み込み後は保存した意味設定と元データから派生状態を再計算する。
+
+## 17. Phase 3A棒グラフfieldと0.1互換性
+
+Phase 3Aでも`schemaVersion: "0.1"`を使用し、Phase 1 / 2 readerが定義済み概念を具体化した次の意味fieldを保存する。
+
+```json
+{
+  "chart": {
+    "type": "bar",
+    "bar": { "orientation": "vertical", "gapRatio": 0.2 },
+    "series": [{
+      "barBindings": {
+        "category": { "datasetId": "dataset-main", "columnId": "col-category", "rows": { "kind": "all" } },
+        "value": { "datasetId": "dataset-main", "columnId": "col-value", "rows": { "kind": "all" } },
+        "error": { "datasetId": "dataset-main", "columnId": "col-error", "rows": { "kind": "all" } }
+      },
+      "style": {
+        "bar": {
+          "fillColor": "#2563eb",
+          "borderColor": "#1d4ed8",
+          "borderWidthPx": 1,
+          "opacity": 1,
+          "widthRatio": 0.8
+        }
+      }
+    }]
+  }
+}
+```
+
+- `orientation`: `vertical` / `horizontal`。Category / Value / Errorの意味は方向によらず不変とする。
+- `gapRatio`: 0〜0.9、`widthRatio`: 0.05〜1、`opacity`: 0〜1の有限numberとする。Plotlyの`bargap`やtrace width名は保存しない。
+- `barBindings.error`は未指定なら`null`。指定時も不正セルを置換せずDatasetへ保持する。全体表示可否、不正件数、縦棒のY Error／横棒のX Errorという描画方向は派生状態であり保存しない。
+- `bindings.x/y`は散布図、`barBindings`は棒グラフの意味契約である。非アクティブ側は将来の種類切替に備えて保持でき、`null`も許容する。active type側の必須bindingだけをsemantic validationする。
+- カテゴリ軸／値軸の区別はtypeとorientationから派生し、Axis ModelへPlotlyのcategory typeを保存しない。
+- Data Pane幅、列強調badge、除外／警告件数、SelectionはSession／派生状態のため保存しない。
+
+旧`0.1` scatterファイルで`chart.bar`、`series.barBindings`、`style.bar.opacity`、`style.bar.widthRatio`が欠落する場合、readerは欠落時だけそれぞれvertical / 0.2、既存X / Y / Y Error参照、1、0.8を補う。明示された不正enum・範囲外値・参照不整合はdefaultで救済せずinvalid fileとして拒否する。

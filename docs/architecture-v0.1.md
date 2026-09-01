@@ -484,3 +484,27 @@ Plotlyのmarker symbol、dash、legend座標、log range表現は`renderer/plotl
 Persistenceは`schemaVersion: "0.1"`の構造検証前に、Phase 2で追加したfieldが欠落している場合だけdefault hydrationを行う。明示された不正値はdefaultで上書きせず拒否する。これによりPhase 1 writerの`0.1`ファイルを読み込みつつ、現在writerは完全なStyle Modelを保存する。
 
 リサイズ計算は`calculateResizedChartSize`という純粋関数で整数化と上限・下限clampを行う。ChartCanvasはpointer capture中のpreviewをUI Stateに保持し、pointer up時だけ`set-chart-size-complete` actionで幅・高さを同時更新する。
+
+## 17. Phase 3A棒グラフ・Data Gridアーキテクチャ
+
+### 17.1 Chart Typeと意味binding
+
+Chart Modelの種類は`scatter | bar`、棒の向きは`vertical | horizontal`とする。Series Modelは既存の散布図`bindings.x/y`と独立した`barBindings.category/value/error`を保持する。グラフ種類切替時に空のbindingだけを対応する既存bindingから補完し、その後の縦横切替ではCategory / Value / Errorを一切付け替えない。
+
+`resolveBarSeries`は同じ行位置でCategory / Value / Errorをzipしてから不正なCategory / Value行を除外する。誤差の妥当性は描画対象行だけで判定し、派生値`showErrorBars`と不正行IDを返す。Renderer Adapterは縦棒で`error_y`、横棒で`error_x`へ変換するが、このPlotly名をChart Modelへ保存しない。
+
+### 17.2 Category AxisとRenderer境界
+
+`isCategoryAxis(project, dimension)`を共通の派生判定とする。縦棒のX軸、横棒のY軸ではRendererがcategory axisを生成し、保存済みAxis Modelのnumeric range、interval、log、reverseを適用しない。値軸では0を自動extent候補に含め、明示boundがなければ0 baselineを維持する。明示minimumが0以外の場合はModelを変更せずUI warningを派生する。
+
+棒のorientation、style、gap、widthは独自enum／比率を正規状態とし、Plotlyの`v` / `h`、`bargap`、bar trace、error directionは`src/renderer/plotly/`内だけで生成する。
+
+### 17.3 Data GridとPane Resize
+
+Data GridはDatasetとbindingを読み取る表示・選択コンポーネントであり、セル表示用の複製状態を持たない。列強調ラベルは現在のChart Typeとbindingから派生する。表の固定見出し、固定行番号、スクロールはCSS上の表示責務である。
+
+Data / Chart境界の幅はAppのSession Stateとし、`calculateDataPaneWidth`純粋関数が320〜720pxへclampする。Project Reducer、Persistence、Undo候補のChart Modelには含めない。対してグラフ自身のwidth/heightは引き続きChart Modelへ確定保存する。
+
+### 17.4 Phase 1 / 2互換性
+
+Persistence hydrationは`schemaVersion: "0.1"`を維持し、欠落した`chart.bar`、`series.barBindings`、bar opacity / widthだけをdefault補完する。旧scatterのX/Y/Y Error参照をCategory / Value / Errorの初期候補としてコピーするが、旧fieldは変更しない。明示された不正orientation、範囲外style、broken referenceは補正せず拒否し、validation成功後だけatomic loadする。

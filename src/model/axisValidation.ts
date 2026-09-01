@@ -1,14 +1,25 @@
-import { resolveScatterSeries } from './dataBinding'
+import {
+  isCategoryAxis,
+  resolveBarSeries,
+  resolveScatterSeries,
+} from './dataBinding'
 import type { ProjectState, ValidationIssue } from './types'
 
 export function validateLogAxes(project: ProjectState): ValidationIssue[] {
   const series = project.chart.series[0]
   if (!series) return []
-  const resolved = resolveScatterSeries(project, series)
+  const scatter =
+    project.chart.type === 'scatter'
+      ? resolveScatterSeries(project, series)
+      : null
+  const bar =
+    project.chart.type === 'bar' ? resolveBarSeries(project, series) : null
   const issues: ValidationIssue[] = []
 
   for (const axis of project.chart.axes) {
-    if (axis.scale.type !== 'log') continue
+    if (isCategoryAxis(project, axis.dimension) || axis.scale.type !== 'log') {
+      continue
+    }
     const path = `project.chart.axes.${axis.id}.scale`
     if (axis.scale.minimum !== null && axis.scale.minimum <= 0) {
       issues.push({
@@ -25,16 +36,26 @@ export function validateLogAxes(project: ProjectState): ValidationIssue[] {
       })
     }
 
-    const invalidPointCount = resolved.points.filter((point) => {
-      if (axis.dimension === 'x') return point.x <= 0
-      if (point.y <= 0) return true
-      return (
-        resolved.showYErrorBars &&
-        series.errorBars.y.style.visible &&
-        point.yError !== null &&
-        point.y - point.yError <= 0
-      )
-    }).length
+    const invalidPointCount = scatter
+      ? scatter.points.filter((point) => {
+          if (axis.dimension === 'x') return point.x <= 0
+          if (point.y <= 0) return true
+          return (
+            scatter.showYErrorBars &&
+            series.errorBars.y.style.visible &&
+            point.yError !== null &&
+            point.y - point.yError <= 0
+          )
+        }).length
+      : (bar?.points.filter((point) => {
+          if (point.value <= 0) return true
+          return (
+            bar.showErrorBars &&
+            series.errorBars.y.style.visible &&
+            point.error !== null &&
+            point.value - point.error <= 0
+          )
+        }).length ?? 0)
     if (invalidPointCount > 0) {
       issues.push({
         code: 'axis.log.data',

@@ -1,5 +1,9 @@
 import type { Config, Data, Layout, LayoutAxis } from 'plotly.js'
-import { resolveScatterSeries } from '../../model/dataBinding'
+import {
+  isCategoryAxis,
+  resolveBarSeries,
+  resolveScatterSeries,
+} from '../../model/dataBinding'
 import { CHART_SIZE_LIMITS } from '../../model/limits'
 import type {
   AxisModel,
@@ -79,20 +83,32 @@ function legendLayout(position: LegendPosition) {
   return { x: 1.02, y: 0.5, xanchor: 'left' as const, yanchor: 'middle' as const, orientation: 'v' as const }
 }
 
-function toPlotlyAxis(axis: AxisModel, values: number[]): Partial<LayoutAxis> {
-  const range = axisRange(axis, values)
+function toPlotlyAxis(
+  axis: AxisModel,
+  values: number[],
+  categoryAxis = false,
+): Partial<LayoutAxis> {
+  const range = categoryAxis ? undefined : axisRange(axis, values)
   return {
     title: { text: axis.title.visible ? escapePlotlyText(axis.title.text) : '' },
-    type: axis.scale.type,
-    autorange: range ? false : axis.scale.reversed ? 'reversed' : true,
-    range,
-    dtick:
-      axis.ticks.majorInterval.mode === 'fixed' &&
-      axis.ticks.majorInterval.step > 0
-        ? axis.ticks.majorInterval.step
-        : undefined,
+    type: categoryAxis ? 'category' : axis.scale.type,
+    ...(categoryAxis
+      ? { autorange: true as const }
+      : {
+          autorange: range
+            ? (false as const)
+            : axis.scale.reversed
+              ? ('reversed' as const)
+              : (true as const),
+          range,
+          dtick:
+            axis.ticks.majorInterval.mode === 'fixed' &&
+            axis.ticks.majorInterval.step > 0
+              ? axis.ticks.majorInterval.step
+              : undefined,
+        }),
     showgrid: axis.gridLines.majorVisible,
-    minor: {
+    ...(!categoryAxis ? { minor: {
       showgrid: axis.gridLines.minorVisible,
       ticks: axis.ticks.minorVisible
         ? toPlotlyTicks(axis.ticks.direction)
@@ -104,7 +120,7 @@ function toPlotlyAxis(axis: AxisModel, values: number[]): Partial<LayoutAxis> {
       ticklen: axis.ticks.direction === 'cross' ? 10 : 5,
       tickcolor: axis.line.color,
       tickwidth: axis.line.widthPx,
-    },
+    } } : {}),
     zeroline: false,
     ticks: axis.ticks.majorVisible
       ? toPlotlyTicks(axis.ticks.direction)
@@ -126,69 +142,134 @@ function toPlotlyAxis(axis: AxisModel, values: number[]): Partial<LayoutAxis> {
 
 export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
   const series = project.chart.series[0]
-  const resolved = resolveScatterSeries(project, series)
-  const x = resolved.points.map((point) => point.x)
-  const y = resolved.points.map((point) => point.y)
-  const pointsWithYErrors = resolved.points.filter(
-    (point): point is typeof point & { yError: number } =>
-      point.yError !== null,
-  )
-  const hasYErrors =
-    resolved.showYErrorBars &&
-    series.errorBars.y.style.visible &&
-    pointsWithYErrors.length === resolved.points.length
-  const yErrors = pointsWithYErrors.map((point) => point.yError)
   const xAxis = project.chart.axes.find((axis) => axis.dimension === 'x')
   const yAxis = project.chart.axes.find((axis) => axis.dimension === 'y')
-  const yExtentValues = hasYErrors
-    ? pointsWithYErrors.flatMap((point) => [
-        point.y - point.yError,
-        point.y + point.yError,
-      ])
-    : y
+  let trace: Data
+  let xValues: number[] = []
+  let yValues: number[] = []
 
-  const mode = [
-    series.style.line.visible ? 'lines' : '',
-    series.style.marker.visible ? 'markers' : '',
-  ]
-    .filter(Boolean)
-    .join('+') || 'none'
-  const trace: Data = {
-    type: 'scatter',
-    mode: mode as 'markers' | 'lines' | 'lines+markers' | 'none',
-    name: series.name,
-    visible: series.visible,
-    showlegend: project.chart.legend.visible,
-    x,
-    y,
-    customdata: resolved.points.map((point) => point.rowId),
-    marker: {
-      color: series.style.marker.fillColor,
-      size: series.style.marker.sizePx,
-      symbol: toPlotlyMarker(series.style.marker.shape),
-      line: {
-        color: series.style.marker.borderColor,
-        width: series.style.marker.borderWidthPx,
-      },
-    },
-    line: {
-      color: series.style.line.color,
-      width: series.style.line.widthPx,
-      dash: toPlotlyDash(series.style.line.dash),
-    },
-    ...(hasYErrors
+  if (project.chart.type === 'bar') {
+    const resolved = resolveBarSeries(project, series)
+    const categories = resolved.points.map((point) => point.category)
+    const values = resolved.points.map((point) => point.value)
+    const pointsWithErrors = resolved.points.filter(
+      (point): point is typeof point & { error: number } => point.error !== null,
+    )
+    const hasErrors =
+      resolved.showErrorBars &&
+      series.errorBars.y.style.visible &&
+      pointsWithErrors.length === resolved.points.length
+    const errorValues = pointsWithErrors.map((point) => point.error)
+    const error = hasErrors
       ? {
-          error_y: {
-            type: 'data',
-            symmetric: true,
-            visible: true,
-            array: yErrors,
-            color: series.errorBars.y.style.color,
-            thickness: series.errorBars.y.style.widthPx,
-            width: series.errorBars.y.style.capSizePx,
-          },
+          type: 'data' as const,
+          symmetric: true,
+          visible: true,
+          array: errorValues,
+          color: series.errorBars.y.style.color,
+          thickness: series.errorBars.y.style.widthPx,
+          width: series.errorBars.y.style.capSizePx,
         }
-      : {}),
+      : undefined
+    const vertical = project.chart.bar.orientation === 'vertical'
+    const extent = hasErrors
+      ? pointsWithErrors.flatMap((point) => [
+          point.value - point.error,
+          point.value + point.error,
+        ])
+      : values
+    const valueAxis = vertical ? yAxis : xAxis
+    const valueExtent = valueAxis?.scale.type === 'log' ? extent : [0, ...extent]
+    if (vertical) yValues = valueExtent
+    else xValues = valueExtent
+    trace = {
+      type: 'bar',
+      orientation: vertical ? 'v' : 'h',
+      name: series.name,
+      visible: series.visible,
+      showlegend: project.chart.legend.visible,
+      x: vertical ? categories : values,
+      y: vertical ? values : categories,
+      customdata: resolved.points.map((point) => point.rowId),
+      width: series.style.bar.widthRatio,
+      opacity: series.style.bar.opacity,
+      marker: {
+        color: series.style.bar.fillColor,
+        line: {
+          color: series.style.bar.borderColor,
+          width: series.style.bar.borderWidthPx,
+        },
+      },
+      ...(hasErrors
+        ? vertical
+          ? { error_y: error }
+          : { error_x: error }
+        : {}),
+    } as Data
+  } else {
+    const resolved = resolveScatterSeries(project, series)
+    const x = resolved.points.map((point) => point.x)
+    const y = resolved.points.map((point) => point.y)
+    const pointsWithYErrors = resolved.points.filter(
+      (point): point is typeof point & { yError: number } =>
+        point.yError !== null,
+    )
+    const hasYErrors =
+      resolved.showYErrorBars &&
+      series.errorBars.y.style.visible &&
+      pointsWithYErrors.length === resolved.points.length
+    const yErrors = pointsWithYErrors.map((point) => point.yError)
+    const yExtentValues = hasYErrors
+      ? pointsWithYErrors.flatMap((point) => [
+          point.y - point.yError,
+          point.y + point.yError,
+        ])
+      : y
+    xValues = x
+    yValues = yExtentValues
+    const mode = [
+      series.style.line.visible ? 'lines' : '',
+      series.style.marker.visible ? 'markers' : '',
+    ]
+      .filter(Boolean)
+      .join('+') || 'none'
+    trace = {
+      type: 'scatter',
+      mode: mode as 'markers' | 'lines' | 'lines+markers' | 'none',
+      name: series.name,
+      visible: series.visible,
+      showlegend: project.chart.legend.visible,
+      x,
+      y,
+      customdata: resolved.points.map((point) => point.rowId),
+      marker: {
+        color: series.style.marker.fillColor,
+        size: series.style.marker.sizePx,
+        symbol: toPlotlyMarker(series.style.marker.shape),
+        line: {
+          color: series.style.marker.borderColor,
+          width: series.style.marker.borderWidthPx,
+        },
+      },
+      line: {
+        color: series.style.line.color,
+        width: series.style.line.widthPx,
+        dash: toPlotlyDash(series.style.line.dash),
+      },
+      ...(hasYErrors
+        ? {
+            error_y: {
+              type: 'data',
+              symmetric: true,
+              visible: true,
+              array: yErrors,
+              color: series.errorBars.y.style.color,
+              thickness: series.errorBars.y.style.widthPx,
+              width: series.errorBars.y.style.capSizePx,
+            },
+          }
+        : {}),
+    }
   }
 
   return {
@@ -218,8 +299,13 @@ export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
       },
       showlegend: project.chart.legend.visible,
       legend: legendLayout(project.chart.legend.position),
-      xaxis: xAxis ? toPlotlyAxis(xAxis, x) : undefined,
-      yaxis: yAxis ? toPlotlyAxis(yAxis, yExtentValues) : undefined,
+      xaxis: xAxis
+        ? toPlotlyAxis(xAxis, xValues, isCategoryAxis(project, 'x'))
+        : undefined,
+      yaxis: yAxis
+        ? toPlotlyAxis(yAxis, yValues, isCategoryAxis(project, 'y'))
+        : undefined,
+      bargap: project.chart.type === 'bar' ? project.chart.bar.gapRatio : undefined,
       margin: { l: 78, r: 28, t: 64, b: 70 },
       paper_bgcolor: project.chart.style.backgroundColor,
       plot_bgcolor: project.chart.style.plotBackgroundColor,

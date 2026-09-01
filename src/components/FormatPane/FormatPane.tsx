@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CHART_SIZE_LIMITS, STYLE_LIMITS } from '../../model/limits'
+import { isCategoryAxis } from '../../model/dataBinding'
 import type {
   AxisModel,
   FontStyleModel,
@@ -17,6 +18,7 @@ interface FormatPaneProps {
   project: ProjectState
   selection: ChartSelection
   issues: ValidationIssue[]
+  warnings: ValidationIssue[]
   onSelectionChange: (selection: ChartSelection) => void
   onAction: (action: ProjectAction) => void
 }
@@ -27,6 +29,7 @@ export function FormatPane({
   project,
   selection,
   issues,
+  warnings,
   onSelectionChange,
   onAction,
 }: FormatPaneProps) {
@@ -68,8 +71,8 @@ export function FormatPane({
             </option>
           ))}
           {project.chart.series.map((series) => (
-            <option value={`error-bars:${series.id}:y`} key={`${series.id}-error`}>
-              Y誤差範囲
+            <option value={`error-bars:${series.id}:value`} key={`${series.id}-error`}>
+              {project.chart.type === 'bar' ? '誤差範囲' : 'Y誤差範囲'}
             </option>
           ))}
           <option value={`legend:${project.chart.id}`}>凡例</option>
@@ -84,9 +87,11 @@ export function FormatPane({
       {selection.type === 'chart' && (
         <ChartControls project={project} onAction={onAction} />
       )}
-      {selectedAxis && <AxisControls axis={selectedAxis} onAction={onAction} />}
+      {selectedAxis && (
+        <AxisControls project={project} axis={selectedAxis} onAction={onAction} />
+      )}
       {selection.type === 'series' && selectedSeries && (
-        <SeriesControls series={selectedSeries} onAction={onAction} />
+        <SeriesControls project={project} series={selectedSeries} onAction={onAction} />
       )}
       {selection.type === 'error-bars' && selectedSeries && (
         <ErrorBarControls series={selectedSeries} onAction={onAction} />
@@ -108,6 +113,16 @@ export function FormatPane({
           </ul>
         </div>
       )}
+      {warnings.length > 0 && (
+        <div className="warning-box" role="status">
+          <strong>グラフの注意</strong>
+          <ul>
+            {warnings.map((warning) => (
+              <li key={`${warning.code}-${warning.path}`}>{warning.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </aside>
   )
 }
@@ -121,7 +136,9 @@ function selectionLabel(project: ProjectState, selection: ChartSelection): strin
       : 'Y軸'
   }
   if (selection.type === 'series') return 'データ系列'
-  if (selection.type === 'error-bars') return 'Y誤差範囲'
+  if (selection.type === 'error-bars') {
+    return project.chart.type === 'bar' ? '誤差範囲' : 'Y誤差範囲'
+  }
   if (selection.type === 'legend') return '凡例'
   return 'グラフタイトル'
 }
@@ -135,6 +152,63 @@ function ChartControls({
 }) {
   return (
     <>
+      <fieldset>
+        <legend>グラフの種類</legend>
+        <label className="control-label">
+          <span>種類</span>
+          <select
+            value={project.chart.type}
+            onChange={(event) =>
+              onAction({
+                type: 'set-chart-type',
+                value: event.target.value as ProjectState['chart']['type'],
+              })
+            }
+          >
+            <option value="scatter">散布図</option>
+            <option value="bar">棒グラフ</option>
+          </select>
+        </label>
+        {project.chart.type === 'bar' && (
+          <>
+            <div className="orientation-control" role="radiogroup" aria-label="棒グラフの方向">
+              <label>
+                <input
+                  type="radio"
+                  name="bar-orientation"
+                  value="vertical"
+                  checked={project.chart.bar.orientation === 'vertical'}
+                  onChange={() =>
+                    onAction({ type: 'set-bar-orientation', value: 'vertical' })
+                  }
+                />
+                縦棒
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="bar-orientation"
+                  value="horizontal"
+                  checked={project.chart.bar.orientation === 'horizontal'}
+                  onChange={() =>
+                    onAction({ type: 'set-bar-orientation', value: 'horizontal' })
+                  }
+                />
+                横棒
+              </label>
+            </div>
+            <NumberDraftInput
+              label="棒の間隔"
+              value={project.chart.bar.gapRatio}
+              minimum={0}
+              maximum={0.9}
+              onCommit={(value) => {
+                if (value !== null) onAction({ type: 'set-bar-gap', value })
+              }}
+            />
+          </>
+        )}
+      </fieldset>
       <fieldset>
         <legend>塗りつぶし</legend>
         <ColorControl
@@ -183,9 +257,11 @@ function ChartControls({
 }
 
 function AxisControls({
+  project,
   axis,
   onAction,
 }: {
+  project: ProjectState
   axis: AxisModel
   onAction: (action: ProjectAction) => void
 }) {
@@ -195,6 +271,7 @@ function AxisControls({
   const minorUnit = axis.ticks.minorInterval.mode === 'fixed'
     ? axis.ticks.minorInterval.step
     : null
+  const categoryAxis = isCategoryAxis(project, axis.dimension)
 
   return (
     <>
@@ -210,6 +287,12 @@ function AxisControls({
             }
           />
         </label>
+        {categoryAxis ? (
+          <p className="muted-note category-axis-note">
+            この軸はカテゴリ軸です。最小値・最大値・目盛間隔・対数設定は適用されません。
+          </p>
+        ) : (
+          <>
         <div className="two-column-controls">
           <NumberDraftInput
             label="最小値"
@@ -251,11 +334,13 @@ function AxisControls({
             onAction({ type: 'set-axis-reversed', axisId: axis.id, value })
           }
         />
+          </>
+        )}
       </fieldset>
 
       <fieldset>
         <legend>目盛</legend>
-        <NumberDraftInput
+        {!categoryAxis && <NumberDraftInput
           label="主目盛間隔"
           value={majorUnit}
           allowAuto
@@ -263,8 +348,8 @@ function AxisControls({
           onCommit={(value) =>
             onAction({ type: 'set-axis-major-unit', axisId: axis.id, value })
           }
-        />
-        <NumberDraftInput
+        />}
+        {!categoryAxis && <NumberDraftInput
           label="補助目盛間隔"
           value={minorUnit}
           allowAuto
@@ -272,7 +357,7 @@ function AxisControls({
           onCommit={(value) =>
             onAction({ type: 'set-axis-minor-unit', axisId: axis.id, value })
           }
-        />
+        />}
         <div className="two-column-controls">
           <CheckboxControl
             label="主目盛を表示"
@@ -281,13 +366,13 @@ function AxisControls({
               onAction({ type: 'set-axis-tick-visible', axisId: axis.id, kind: 'major', visible })
             }
           />
-          <CheckboxControl
+          {!categoryAxis && <CheckboxControl
             label="補助目盛を表示"
             checked={axis.ticks.minorVisible}
             onChange={(visible) =>
               onAction({ type: 'set-axis-tick-visible', axisId: axis.id, kind: 'minor', visible })
             }
-          />
+          />}
         </div>
         <label className="control-label">
           <span>目盛方向</span>
@@ -342,13 +427,13 @@ function AxisControls({
               onAction({ type: 'set-axis-grid-visible', axisId: axis.id, kind: 'major', visible })
             }
           />
-          <CheckboxControl
+          {!categoryAxis && <CheckboxControl
             label="補助グリッド"
             checked={axis.gridLines.minorVisible}
             onChange={(visible) =>
               onAction({ type: 'set-axis-grid-visible', axisId: axis.id, kind: 'minor', visible })
             }
-          />
+          />}
         </div>
       </fieldset>
 
@@ -364,12 +449,63 @@ function AxisControls({
 }
 
 function SeriesControls({
+  project,
   series,
   onAction,
 }: {
+  project: ProjectState
   series: ProjectState['chart']['series'][number]
   onAction: (action: ProjectAction) => void
 }) {
+  if (project.chart.type === 'bar') {
+    return (
+      <fieldset>
+        <legend>棒の書式</legend>
+        <ColorControl
+          label="塗りつぶし"
+          value={series.style.bar.fillColor}
+          onChange={(value) =>
+            onAction({ type: 'set-series-bar', seriesId: series.id, field: 'fillColor', value })
+          }
+        />
+        <ColorControl
+          label="枠線色"
+          value={series.style.bar.borderColor}
+          onChange={(value) =>
+            onAction({ type: 'set-series-bar', seriesId: series.id, field: 'borderColor', value })
+          }
+        />
+        <NumberDraftInput
+          label="枠線幅"
+          value={series.style.bar.borderWidthPx}
+          minimum={STYLE_LIMITS.minBorderWidthPx}
+          maximum={STYLE_LIMITS.maxBorderWidthPx}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-series-bar', seriesId: series.id, field: 'borderWidthPx', value })
+          }}
+        />
+        <NumberDraftInput
+          label="不透明度"
+          value={series.style.bar.opacity}
+          minimum={0}
+          maximum={1}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-series-bar', seriesId: series.id, field: 'opacity', value })
+          }}
+        />
+        <NumberDraftInput
+          label="棒の幅"
+          value={series.style.bar.widthRatio}
+          minimum={0.05}
+          maximum={1}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-series-bar', seriesId: series.id, field: 'widthRatio', value })
+          }}
+        />
+        <p className="muted-note">棒の幅と間隔は0〜1の比率で指定します。</p>
+      </fieldset>
+    )
+  }
   return (
     <>
       <fieldset>
@@ -484,7 +620,7 @@ function ErrorBarControls({
   const style = series.errorBars.y.style
   return (
     <fieldset>
-      <legend>Y誤差範囲</legend>
+      <legend>誤差範囲</legend>
       <CheckboxControl
         label="表示"
         checked={style.visible}

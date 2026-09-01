@@ -30,3 +30,11 @@ export function sampleProject(
   })
   return project
 }
+
+export function sampleBarProject(
+  tsv = '試験管\t平均\tSD\n3\t1.24\t0.08\n4\t1.51\t0.12\n5\t1.83\t0.05\n6\t2.10\t0.14\n7\t2.31\t0.09',
+): ProjectState {
+  let project = sampleProject(tsv)
+  project = projectReducer(project, { type: 'set-chart-type', value: 'bar' })
+  return project
+}

@@ -5,7 +5,7 @@ import {
   serializeProjectFile,
 } from '../src/persistence/projectFile'
 import { projectReducer } from '../src/state/projectReducer'
-import { sampleProject } from './helpers'
+import { sampleBarProject, sampleProject } from './helpers'
 
 describe('project persistence', () => {
   it('round-trips the complete Phase 1 editing state', () => {
@@ -132,10 +132,14 @@ describe('project persistence', () => {
       delete axis.ticks.minorVisible
     }
     const series = file.project.chart.series[0]
+    delete file.project.chart.bar
+    delete series.barBindings
     delete series.style.line.color
     delete series.style.marker.fillColor
     delete series.style.marker.borderColor
     delete series.style.marker.borderWidthPx
+    delete series.style.bar.opacity
+    delete series.style.bar.widthRatio
     delete series.errorBars.x.style
     delete series.errorBars.y.style
 
@@ -174,6 +178,66 @@ describe('project persistence', () => {
     expect(parseProjectFile(JSON.stringify(file))).toMatchObject({
       ok: false,
       error: { code: 'style.color' },
+    })
+  })
+
+  it('round-trips horizontal bars, semantic bindings, and bar style', () => {
+    let project = sampleBarProject()
+    const seriesId = project.chart.series[0].id
+    project = projectReducer(project, {
+      type: 'set-bar-orientation',
+      value: 'horizontal',
+    })
+    project = projectReducer(project, {
+      type: 'set-bar-gap',
+      value: 0.3,
+    })
+    project = projectReducer(project, {
+      type: 'set-series-bar',
+      seriesId,
+      field: 'opacity',
+      value: 0.75,
+    })
+    const result = parseProjectFile(serializeProjectFile(project))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.project).toEqual(project)
+  })
+
+  it('hydrates a Phase 2 scatter file with Phase 3A defaults', () => {
+    const file = JSON.parse(serializeProjectFile(sampleProject()))
+    delete file.project.chart.bar
+    const series = file.project.chart.series[0]
+    delete series.barBindings
+    delete series.style.bar.opacity
+    delete series.style.bar.widthRatio
+    const result = parseProjectFile(JSON.stringify(file))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.project.chart.type).toBe('scatter')
+    expect(result.project.chart.bar).toEqual({
+      orientation: 'vertical',
+      gapRatio: 0.2,
+    })
+    expect(result.project.chart.series[0].barBindings).toEqual({
+      category: result.project.chart.series[0].bindings.x,
+      value: result.project.chart.series[0].bindings.y,
+      error: result.project.chart.series[0].errorBars.y.value?.source,
+    })
+  })
+
+  it('rejects invalid bar orientation and explicit invalid bar style', () => {
+    const file = JSON.parse(serializeProjectFile(sampleBarProject()))
+    file.project.chart.bar.orientation = 'diagonal'
+    expect(parseProjectFile(JSON.stringify(file))).toMatchObject({
+      ok: false,
+      error: { code: 'schema.project' },
+    })
+
+    const styleFile = JSON.parse(serializeProjectFile(sampleBarProject()))
+    styleFile.project.chart.series[0].style.bar.opacity = 2
+    expect(parseProjectFile(JSON.stringify(styleFile))).toMatchObject({
+      ok: false,
+      error: { code: 'style.range' },
     })
   })
 })

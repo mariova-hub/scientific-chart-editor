@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { toPlotlyFigure } from '../src/renderer/plotly/plotlyAdapter'
 import { projectReducer } from '../src/state/projectReducer'
-import { sampleProject } from './helpers'
+import { sampleBarProject, sampleProject } from './helpers'
 
 describe('Plotly adapter', () => {
   it('maps X, Y, and per-point symmetric Y errors', () => {
@@ -181,5 +181,92 @@ describe('Plotly adapter', () => {
       plot_bgcolor: '#fafafa',
       title: { text: '<b>Scientific chart</b>' },
     })
+  })
+
+  it('maps semantic bar bindings to a vertical trace and Y errors', () => {
+    const figure = toPlotlyFigure(sampleBarProject())
+    expect(figure.data[0]).toMatchObject({
+      type: 'bar',
+      orientation: 'v',
+      x: [3, 4, 5, 6, 7],
+      y: [1.24, 1.51, 1.83, 2.1, 2.31],
+      error_y: { array: [0.08, 0.12, 0.05, 0.14, 0.09] },
+    })
+    expect(figure.data[0]).not.toHaveProperty('error_x')
+  })
+
+  it('maps the same bindings to a horizontal trace and X errors', () => {
+    let project = sampleBarProject()
+    const bindings = structuredClone(project.chart.series[0].barBindings)
+    project = projectReducer(project, {
+      type: 'set-bar-orientation',
+      value: 'horizontal',
+    })
+    const figure = toPlotlyFigure(project)
+    expect(figure.data[0]).toMatchObject({
+      type: 'bar',
+      orientation: 'h',
+      x: [1.24, 1.51, 1.83, 2.1, 2.31],
+      y: [3, 4, 5, 6, 7],
+      error_x: { array: [0.08, 0.12, 0.05, 0.14, 0.09] },
+    })
+    expect(project.chart.series[0].barBindings).toEqual(bindings)
+  })
+
+  it('suppresses the full bar error object when one error is invalid', () => {
+    const project = sampleBarProject(
+      'カテゴリ\t値\t誤差\nA\t1\t0.1\nB\t2\tbad',
+    )
+    const figure = toPlotlyFigure(project)
+    expect(figure.data[0]).toMatchObject({ x: ['A', 'B'], y: [1, 2] })
+    expect(figure.data[0]).not.toHaveProperty('error_y')
+  })
+
+  it('maps renderer-neutral bar style and gap', () => {
+    let project = sampleBarProject()
+    const seriesId = project.chart.series[0].id
+    const actions = [
+      { type: 'set-series-bar', seriesId, field: 'fillColor', value: '#112233' },
+      { type: 'set-series-bar', seriesId, field: 'borderColor', value: '#445566' },
+      { type: 'set-series-bar', seriesId, field: 'borderWidthPx', value: 3 },
+      { type: 'set-series-bar', seriesId, field: 'opacity', value: 0.7 },
+      { type: 'set-series-bar', seriesId, field: 'widthRatio', value: 0.6 },
+      { type: 'set-bar-gap', value: 0.35 },
+    ] as const
+    for (const action of actions) project = projectReducer(project, action)
+    const figure = toPlotlyFigure(project)
+    expect(figure.data[0]).toMatchObject({
+      marker: { color: '#112233', line: { color: '#445566', width: 3 } },
+      opacity: 0.7,
+      width: 0.6,
+    })
+    expect(figure.layout.bargap).toBe(0.35)
+  })
+
+  it('uses a category axis without numeric-only settings', () => {
+    let project = sampleBarProject()
+    const categoryAxisId = project.chart.axes.find((axis) => axis.dimension === 'x')!.id
+    project = projectReducer(project, {
+      type: 'set-axis-bound',
+      axisId: categoryAxisId,
+      bound: 'minimum',
+      value: 1,
+    })
+    project = projectReducer(project, {
+      type: 'set-axis-major-unit',
+      axisId: categoryAxisId,
+      value: 2,
+    })
+    project = projectReducer(project, {
+      type: 'set-axis-scale-type',
+      axisId: categoryAxisId,
+      value: 'log',
+    })
+    expect(toPlotlyFigure(project).layout.xaxis).toMatchObject({
+      type: 'category',
+      autorange: true,
+    })
+    expect(toPlotlyFigure(project).layout.xaxis).not.toHaveProperty('range')
+    expect(toPlotlyFigure(project).layout.xaxis).not.toHaveProperty('dtick')
   })
 })

@@ -4,7 +4,7 @@ export type ChartSelection =
   | { type: 'chart'; chartId: string }
   | { type: 'axis'; axisId: string }
   | { type: 'series'; seriesId: string }
-  | { type: 'error-bars'; seriesId: string; direction: 'y' }
+  | { type: 'error-bars'; seriesId: string; direction: 'value' }
   | { type: 'legend'; chartId: string }
   | { type: 'chart-title'; chartId: string }
 
@@ -32,11 +32,11 @@ export function selectionFromKey(
   if (axis) return { type: 'axis', axisId: axis.id }
   const series = project.chart.series.find(
     (item) =>
-      key === `series:${item.id}` || key === `error-bars:${item.id}:y`,
+      key === `series:${item.id}` || key === `error-bars:${item.id}:value`,
   )
   if (series) {
     return key.startsWith('error-bars:')
-      ? { type: 'error-bars', seriesId: series.id, direction: 'y' }
+      ? { type: 'error-bars', seriesId: series.id, direction: 'value' }
       : { type: 'series', seriesId: series.id }
   }
   if (key === `legend:${project.chart.id}`) {

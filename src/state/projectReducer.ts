@@ -1,6 +1,8 @@
 import { createDataRange, projectWithDataset } from '../model/createProject'
 import type {
   AxisScaleType,
+  BarOrientation,
+  ChartType,
   DatasetModel,
   FontStyleModel,
   LegendPosition,
@@ -12,7 +14,14 @@ import type {
 
 export type ProjectAction =
   | { type: 'replace-dataset'; dataset: DatasetModel }
-  | { type: 'set-binding'; role: 'x' | 'y' | 'yError'; columnId: string | null }
+  | {
+      type: 'set-binding'
+      role: 'x' | 'y' | 'yError' | 'category' | 'value' | 'barError'
+      columnId: string | null
+    }
+  | { type: 'set-chart-type'; value: ChartType }
+  | { type: 'set-bar-orientation'; value: BarOrientation }
+  | { type: 'set-bar-gap'; value: number }
   | { type: 'set-axis-title'; axisId: string; title: string }
   | {
       type: 'set-axis-bound'
@@ -86,6 +95,12 @@ export type ProjectAction =
       value: boolean | string | number | LineStyle
     }
   | {
+      type: 'set-series-bar'
+      seriesId: string
+      field: 'fillColor' | 'borderColor' | 'borderWidthPx' | 'opacity' | 'widthRatio'
+      value: string | number
+    }
+  | {
       type: 'set-error-bar-style'
       seriesId: string
       field: 'visible' | 'color' | 'widthPx' | 'capSizePx'
@@ -138,7 +153,22 @@ export function projectReducer(
               },
             },
           }
-        : {
+        : action.role === 'category' ||
+            action.role === 'value' ||
+            action.role === 'barError'
+          ? {
+              ...firstSeries,
+              name:
+                action.role === 'value' && action.columnId
+                  ? dataset.columns.find((column) => column.id === action.columnId)
+                      ?.name || firstSeries.name
+                  : firstSeries.name,
+              barBindings: {
+                ...firstSeries.barBindings,
+                [action.role === 'barError' ? 'error' : action.role]: binding,
+              },
+            }
+          : {
             ...firstSeries,
             name:
               action.role === 'y' && action.columnId
@@ -148,6 +178,60 @@ export function projectReducer(
             bindings: { ...firstSeries.bindings, [action.role]: binding },
           }
     return withChart(project, { ...project.chart, series: [nextSeries] })
+  }
+
+  if (action.type === 'set-chart-type') {
+    if (!firstSeries) return project
+    const nextSeries = action.value === 'bar'
+      ? {
+        ...firstSeries,
+        barBindings: {
+          category: firstSeries.barBindings.category ?? firstSeries.bindings.x,
+          value: firstSeries.barBindings.value ?? firstSeries.bindings.y,
+          error:
+            firstSeries.barBindings.error ??
+            firstSeries.errorBars.y.value?.source ??
+            null,
+        },
+        }
+      : {
+        ...firstSeries,
+        bindings: {
+          x: firstSeries.bindings.x ?? firstSeries.barBindings.category,
+          y: firstSeries.bindings.y ?? firstSeries.barBindings.value,
+        },
+        errorBars: {
+          ...firstSeries.errorBars,
+          y: {
+            ...firstSeries.errorBars.y,
+            enabled:
+              firstSeries.errorBars.y.enabled ||
+              firstSeries.barBindings.error !== null,
+            value:
+              firstSeries.errorBars.y.value ??
+              (firstSeries.barBindings.error
+                ? { kind: 'symmetric', source: firstSeries.barBindings.error }
+                : null),
+          },
+        },
+        }
+    return withChart(project, {
+      ...project.chart,
+      type: action.value,
+      series: [nextSeries],
+    })
+  }
+  if (action.type === 'set-bar-orientation') {
+    return withChart(project, {
+      ...project.chart,
+      bar: { ...project.chart.bar, orientation: action.value },
+    })
+  }
+  if (action.type === 'set-bar-gap') {
+    return withChart(project, {
+      ...project.chart,
+      bar: { ...project.chart.bar, gapRatio: action.value },
+    })
   }
 
   if (action.type === 'set-chart-title-text') {
@@ -231,6 +315,25 @@ export function projectReducer(
                 ...series.style,
                 line: {
                   ...series.style.line,
+                  [action.field]: action.value,
+                },
+              },
+            }
+          : series,
+      ),
+    })
+  }
+  if (action.type === 'set-series-bar') {
+    return withChart(project, {
+      ...project.chart,
+      series: project.chart.series.map((series) =>
+        series.id === action.seriesId
+          ? {
+              ...series,
+              style: {
+                ...series.style,
+                bar: {
+                  ...series.style.bar,
                   [action.field]: action.value,
                 },
               },

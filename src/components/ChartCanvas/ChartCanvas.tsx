@@ -112,7 +112,13 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
         <div className="panel-heading">
           <div>
             <span className="eyebrow">Chart</span>
-            <h2 id="chart-heading">散布図</h2>
+            <h2 id="chart-heading">
+              {project.chart.type === 'bar'
+                ? project.chart.bar.orientation === 'vertical'
+                  ? '縦棒グラフ'
+                  : '横棒グラフ'
+                : '散布図'}
+            </h2>
           </div>
           <span className="size-badge">
             {project.chart.size.widthPx} × {project.chart.size.heightPx}px
@@ -153,7 +159,11 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
           {!hasData && (
             <div className="chart-empty">
               <strong>表を貼り付けてください</strong>
-              <span>X列とY列を選ぶと散布図を生成します。</span>
+              <span>
+                {project.chart.type === 'bar'
+                  ? 'カテゴリ列と値の列を選ぶと棒グラフを生成します。'
+                  : 'X列とY列を選ぶと散布図を生成します。'}
+              </span>
             </div>
           )}
         </div>

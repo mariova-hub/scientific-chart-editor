@@ -3,6 +3,8 @@ import { validateProjectSemantics } from '../model/projectValidation'
 import {
   defaultAxisLabels,
   defaultAxisLine,
+  defaultBarOptions,
+  defaultBarStyle,
   defaultChartStyle,
   defaultErrorBarStyle,
   defaultLineStyle,
@@ -98,6 +100,14 @@ function hydrateProjectV01(value: unknown): unknown {
               ),
             }
           : style.marker
+        const bar = isRecord(style.bar)
+          ? {
+              ...defaultBarStyle(),
+              ...style.bar,
+              opacity: valueOrDefault(style.bar.opacity, 1),
+              widthRatio: valueOrDefault(style.bar.widthRatio, 0.8),
+            }
+          : style.bar
         const errorBars = isRecord(item.errorBars)
           ? Object.fromEntries(
               Object.entries(item.errorBars).map(([key, errorBar]) => [
@@ -116,7 +126,22 @@ function hydrateProjectV01(value: unknown): unknown {
           : item.errorBars
         return {
           ...item,
-          style: { ...style, line, marker },
+          barBindings: valueOrDefault(
+            item.barBindings,
+            {
+              category: isRecord(item.bindings)
+                ? item.bindings.x ?? null
+                : null,
+              value: isRecord(item.bindings) ? item.bindings.y ?? null : null,
+              error:
+                isRecord(item.errorBars) &&
+                isRecord(item.errorBars.y) &&
+                isRecord(item.errorBars.y.value)
+                  ? item.errorBars.y.value.source ?? null
+                  : null,
+            },
+          ),
+          style: { ...style, line, marker, bar },
           errorBars,
         }
       })
@@ -131,6 +156,7 @@ function hydrateProjectV01(value: unknown): unknown {
     ...value,
     chart: {
       ...chart,
+      bar: valueOrDefault(chart.bar, defaultBarOptions()),
       axes,
       series,
       title,
@@ -153,6 +179,10 @@ function isDataRange(value: unknown): value is DataRangeRef {
     typeof value.rows.startRowId === 'string' &&
     typeof value.rows.endRowId === 'string'
   )
+}
+
+function isDataRangeOrNull(value: unknown): value is DataRangeRef | null {
+  return value === null || isDataRange(value)
 }
 
 function isDataset(value: unknown): value is DatasetModel {
@@ -267,8 +297,12 @@ function isSeries(value: unknown): value is SeriesModel {
     typeof value.name !== 'string' ||
     typeof value.visible !== 'boolean' ||
     !isRecord(value.bindings) ||
-    !isDataRange(value.bindings.x) ||
-    !isDataRange(value.bindings.y) ||
+    !isDataRangeOrNull(value.bindings.x) ||
+    !isDataRangeOrNull(value.bindings.y) ||
+    !isRecord(value.barBindings) ||
+    !isDataRangeOrNull(value.barBindings.category) ||
+    !isDataRangeOrNull(value.barBindings.value) ||
+    !isDataRangeOrNull(value.barBindings.error) ||
     !isRecord(value.axisIds) ||
     typeof value.axisIds.x !== 'string' ||
     typeof value.axisIds.y !== 'string' ||
@@ -290,6 +324,8 @@ function isSeries(value: unknown): value is SeriesModel {
     typeof value.style.bar.fillColor !== 'string' ||
     typeof value.style.bar.borderColor !== 'string' ||
     typeof value.style.bar.borderWidthPx !== 'number' ||
+    typeof value.style.bar.opacity !== 'number' ||
+    typeof value.style.bar.widthRatio !== 'number' ||
     !isRecord(value.errorBars) ||
     !isErrorBar(value.errorBars.x) ||
     !isErrorBar(value.errorBars.y) ||
@@ -304,7 +340,9 @@ function isSeries(value: unknown): value is SeriesModel {
     Number.isFinite(value.style.line.widthPx) &&
     Number.isFinite(value.style.marker.sizePx) &&
     Number.isFinite(value.style.marker.borderWidthPx) &&
-    Number.isFinite(value.style.bar.borderWidthPx)
+    Number.isFinite(value.style.bar.borderWidthPx) &&
+    Number.isFinite(value.style.bar.opacity) &&
+    Number.isFinite(value.style.bar.widthRatio)
   )
 }
 
@@ -320,7 +358,12 @@ function isProjectState(value: unknown): value is ProjectState {
     !value.datasets.every(isDataset) ||
     !isRecord(value.chart) ||
     typeof value.chart.id !== 'string' ||
-    value.chart.type !== 'scatter' ||
+    (value.chart.type !== 'scatter' && value.chart.type !== 'bar') ||
+    !isRecord(value.chart.bar) ||
+    (value.chart.bar.orientation !== 'vertical' &&
+      value.chart.bar.orientation !== 'horizontal') ||
+    typeof value.chart.bar.gapRatio !== 'number' ||
+    !Number.isFinite(value.chart.bar.gapRatio) ||
     !isRecord(value.chart.title) ||
     typeof value.chart.title.visible !== 'boolean' ||
     typeof value.chart.title.text !== 'string' ||

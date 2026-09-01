@@ -41,6 +41,8 @@ export type MarkerShape =
   | 'x'
 export type LineStyle = 'solid' | 'dash' | 'dot' | 'dash-dot'
 export type LegendPosition = 'right' | 'left' | 'top' | 'bottom'
+export type ChartType = 'scatter' | 'bar'
+export type BarOrientation = 'vertical' | 'horizontal'
 
 export type MajorInterval =
   | { mode: 'auto' }
@@ -115,6 +117,11 @@ export interface SeriesModel {
     x: DataRangeRef | null
     y: DataRangeRef | null
   }
+  barBindings: {
+    category: DataRangeRef | null
+    value: DataRangeRef | null
+    error: DataRangeRef | null
+  }
   axisIds: { x: string; y: string }
   style: {
     color: string
@@ -136,6 +143,8 @@ export interface SeriesModel {
       fillColor: string
       borderColor: string
       borderWidthPx: number
+      opacity: number
+      widthRatio: number
     }
   }
   errorBars: {
@@ -148,7 +157,11 @@ export interface SeriesModel {
 
 export interface ChartModel {
   id: string
-  type: 'scatter'
+  type: ChartType
+  bar: {
+    orientation: BarOrientation
+    gapRatio: number
+  }
   title: {
     visible: boolean
     text: string

@@ -25,6 +25,22 @@ export interface ResolvedScatterSeries {
   showYErrorBars: boolean
 }
 
+export type BarCategory = number | string
+
+export interface BarPoint {
+  rowId: string
+  category: BarCategory
+  value: number
+  error: number | null
+}
+
+export interface ResolvedBarSeries {
+  points: BarPoint[]
+  skippedRowIds: string[]
+  invalidErrorRowIds: string[]
+  showErrorBars: boolean
+}
+
 function findDataset(
   datasets: DatasetModel[],
   datasetId: string,
@@ -114,4 +130,85 @@ export function resolveScatterSeries(
     errorCells !== null && invalidErrorRowIds.length === 0
 
   return { points, skippedXYRowIds, invalidErrorRowIds, showYErrorBars }
+}
+
+function isBarCategory(value: CellValue): value is BarCategory {
+  return (
+    typeof value === 'string' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  )
+}
+
+export function resolveBarSeries(
+  project: ProjectState,
+  series: SeriesModel,
+): ResolvedBarSeries {
+  const { category, value, error } = series.barBindings
+  if (!category || !value) {
+    return {
+      points: [],
+      skippedRowIds: [],
+      invalidErrorRowIds: [],
+      showErrorBars: false,
+    }
+  }
+
+  const categoryCells = resolveDataRange(project.datasets, category)
+  const valueCells = resolveDataRange(project.datasets, value)
+  const errorCells = error ? resolveDataRange(project.datasets, error) : null
+  const count = Math.min(categoryCells.length, valueCells.length)
+  const points: BarPoint[] = []
+  const skippedRowIds: string[] = []
+  const invalidErrorRowIds: string[] = []
+
+  for (let index = 0; index < count; index += 1) {
+    const categoryCell = categoryCells[index]
+    const valueCell = valueCells[index]
+    if (
+      !isBarCategory(categoryCell.value) ||
+      typeof valueCell.value !== 'number' ||
+      !Number.isFinite(valueCell.value)
+    ) {
+      skippedRowIds.push(categoryCell.rowId)
+      continue
+    }
+
+    let errorValue: number | null = null
+    if (errorCells) {
+      const candidate = errorCells[index]?.value ?? null
+      if (
+        typeof candidate === 'number' &&
+        Number.isFinite(candidate) &&
+        candidate >= 0
+      ) {
+        errorValue = candidate
+      } else {
+        invalidErrorRowIds.push(categoryCell.rowId)
+      }
+    }
+
+    points.push({
+      rowId: categoryCell.rowId,
+      category: categoryCell.value,
+      value: valueCell.value,
+      error: errorValue,
+    })
+  }
+
+  return {
+    points,
+    skippedRowIds,
+    invalidErrorRowIds,
+    showErrorBars: errorCells !== null && invalidErrorRowIds.length === 0,
+  }
+}
+
+export function isCategoryAxis(
+  project: ProjectState,
+  dimension: 'x' | 'y',
+): boolean {
+  if (project.chart.type !== 'bar') return false
+  return project.chart.bar.orientation === 'vertical'
+    ? dimension === 'x'
+    : dimension === 'y'
 }

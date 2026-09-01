@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useRef, useState } from 'react'
+import { useMemo, useReducer, useRef, useState, type CSSProperties } from 'react'
 import './App.css'
 import {
   ChartCanvas,
@@ -6,13 +6,17 @@ import {
 } from './components/ChartCanvas/ChartCanvas'
 import { DataGrid } from './components/DataGrid/DataGrid'
 import { FormatPane } from './components/FormatPane/FormatPane'
+import { PaneResizeHandle } from './components/PaneResizeHandle'
 import { Toolbar } from './components/Toolbar/Toolbar'
 import { parseTsv, TsvParseError } from './data/tsv/parseTsv'
-import { resolveScatterSeries } from './model/dataBinding'
+import { resolveBarSeries, resolveScatterSeries } from './model/dataBinding'
 import { validateLogAxes } from './model/axisValidation'
 import { createEmptyProject } from './model/createProject'
 import { DATA_LIMITS } from './model/limits'
-import { validateProjectSemantics } from './model/projectValidation'
+import {
+  getProjectWarnings,
+  validateProjectSemantics,
+} from './model/projectValidation'
 import { downloadTextFile } from './persistence/browserFiles'
 import {
   loadProjectAtomically,
@@ -33,13 +37,18 @@ function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [messageKind, setMessageKind] = useState<MessageKind>('info')
   const [selection, setSelection] = useState(() => defaultSelection(project))
+  const [dataPaneWidth, setDataPaneWidth] = useState(360)
   const chartRef = useRef<ChartCanvasHandle>(null)
   const issues = useMemo(() => validateProjectSemantics(project), [project])
-  const resolved = useMemo(
-    () => resolveScatterSeries(project, project.chart.series[0]),
+  const resolvedCount = useMemo(
+    () =>
+      project.chart.type === 'bar'
+        ? resolveBarSeries(project, project.chart.series[0]).points.length
+        : resolveScatterSeries(project, project.chart.series[0]).points.length,
     [project],
   )
-  const canPersist = issues.length === 0 && resolved.points.length > 0
+  const warnings = useMemo(() => getProjectWarnings(project), [project])
+  const canPersist = issues.length === 0 && resolvedCount > 0
 
   const showMessage = (text: string, kind: MessageKind) => {
     setMessage(text)
@@ -141,7 +150,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 2</span>
+        <span className="phase-badge">v0.1 · Phase 3A</span>
       </header>
 
       <Toolbar
@@ -154,7 +163,10 @@ function App() {
         onExportSvg={handleExportSvg}
       />
 
-      <main className="workspace-grid">
+      <main
+        className="workspace-grid"
+        style={{ '--data-pane-width': `${dataPaneWidth}px` } as CSSProperties}
+      >
         <DataGrid
           project={project}
           onPasteTable={handlePasteTable}
@@ -162,10 +174,14 @@ function App() {
             handleProjectAction({ type: 'set-binding', role, columnId })
           }
         />
+        <PaneResizeHandle
+          widthPx={dataPaneWidth}
+          onWidthChange={setDataPaneWidth}
+        />
         <ChartCanvas
           ref={chartRef}
           project={project}
-          hasData={resolved.points.length > 0}
+          hasData={resolvedCount > 0}
           selected={selection.type === 'chart'}
           onSelectChart={() => setSelection(defaultSelection(project))}
           onResizeComplete={(size) =>
@@ -180,6 +196,7 @@ function App() {
           project={project}
           selection={selection}
           issues={issues}
+          warnings={warnings}
           onSelectionChange={setSelection}
           onAction={handleProjectAction}
         />
