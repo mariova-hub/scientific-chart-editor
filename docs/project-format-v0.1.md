@@ -615,3 +615,16 @@ Phase 3Aでも`schemaVersion: "0.1"`を使用し、Phase 1 / 2 readerが定義�
 - Data Pane幅、列強調badge、除外／警告件数、SelectionはSession／派生状態のため保存しない。
 
 旧`0.1` scatterファイルで`chart.bar`、`series.barBindings`、`style.bar.opacity`、`style.bar.widthRatio`が欠落する場合、readerは欠落時だけそれぞれvertical / 0.2、既存X / Y / Y Error参照、1、0.8を補う。明示された不正enum・範囲外値・参照不整合はdefaultで救済せずinvalid fileとして拒否する。
+
+## 18. Phase 3B-1 editable gridの保存契約
+
+Phase 3B-1はschema構造を変更せず`schemaVersion: "0.1"`を維持する。矩形Pasteの結果は既存の`DatasetModel`へ次のように正規化して保存する。
+
+- Grid row 1（内部`rowIndex: 0`）は`columns[].name`として保存する。
+- Grid row 2以降は`rows[].cells[columnId]`の`number | string | null`として保存する。
+- 部分上書き後も既存dataset / column / row IDを維持し、拡張された行・列だけ新規IDを持つ。
+- 新規列によって既存行に増えた空セル、および新規行の未貼り付け列は`null`として保存する。
+- 貼り付け操作履歴、clipboard原文、active cell、focus、選択枠は保存しない。
+- X/Y/Y ErrorおよびCategory/Value/Error bindingはcolumn ID参照のまま保存し、セル値更新によって付け替えない。
+
+通常PasteとDataset全置換は保存形式上ではどちらも最終Dataset snapshotとなるが、編集時の操作契約は区別する。通常Pasteは既存stable IDを維持する`paste-range`操作であり、全置換/importは利用者が明示した別機能としてのみ将来提供できる。

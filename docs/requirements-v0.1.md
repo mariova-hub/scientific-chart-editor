@@ -317,3 +317,17 @@ Phase 2でも棒・折れ線グラフ、複数系列、回帰、Xエラーバー
 - Data Pane幅は320〜720pxでドラッグまたはキーボード調整できるSession Stateとし、プロジェクトには保存しない。グラフ寸法のドラッグリサイズとは別の責務である。
 
 Phase 3Aは単一系列の棒グラフに限定し、複数系列、grouped / stacked bars、回帰、非対称誤差等には横展開しない。
+
+## 13. Phase 3B-1で確定したData Grid Paste規則
+
+- Data Gridはimport結果のpreviewではなく、セルを選択して更新できるeditable gridとする。通常の貼り付け経路は専用textareaではなく、active cell上のブラウザ標準paste eventである。
+- active cellは見出し行を含む0-basedの`rowIndex` / `columnIndex`としてSession Stateに保持する。表示上のA1は`0,0`であり、プロジェクトへ保存しない。
+- Datasetの第1行相当は列見出しとして扱う。A1やC1への貼り付けは該当`ColumnModel.name`を更新し、C2以降への貼り付けはC1の既存見出しを変更しない。clipboard blockの先頭行を毎回見出しとは解釈しない。
+- Clipboard TSVは各セルを`number | string | null`へparseした矩形値として扱い、active cellを左上として該当範囲だけを更新する。短い行は矩形内で`null`へ補完する。
+- 初回A1貼り付け、既存セル上書き、別列追加、行追加は同じRectangular Paste contractを使用する。通常PasteでDataset全体を置換しない。
+- 貼り付け先が現在範囲外なら必要な行・列だけを追加する。既存の最大256列・10,000データ行を超える場合は、状態を一部変更せず操作全体を拒否する。
+- 部分更新ではdataset、既存column、既存rowのstable IDを維持し、新規行列だけIDを生成する。したがって、参照列が存在する限り散布図・棒グラフのbindingを維持する。
+- 1回のPasteは候補Datasetを含む単一`paste-range` Reducer actionとして確定する。セルごとのactionへ分割せず、将来1操作単位のUndo / Redoへ接続可能にする。
+- セルクリックを必須経路とし、Arrow、Tab、Enterによるactive cell移動も提供する。複数セル選択、copy、cut、delete、数式、sort、filterはPhase 3B-1に含めない。
+
+Phase 1の「TSV blockの1行目を常にheaderとしてDataset全体を作る」規則は、旧`parseTsv` importerと過去テストの互換契約としてのみ残す。Phase 3B-1以降の通常Grid Pasteでは、本節の座標ベース規則を優先する。

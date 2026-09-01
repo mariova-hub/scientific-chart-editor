@@ -247,7 +247,6 @@ h2 {
   font-weight: 700;
 }
 
-.paste-area,
 input,
 select {
   width: 100%;
@@ -258,21 +257,10 @@ select {
   outline: none;
 }
 
-.paste-area:focus,
 input:focus,
 select:focus {
   border-color: #4f78b5;
   box-shadow: 0 0 0 3px rgb(64 112 180 / 12%);
-}
-
-.paste-area {
-  min-height: 96px;
-  margin-top: 6px;
-  padding: 9px;
-  resize: vertical;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 input,
@@ -282,16 +270,31 @@ select {
   font-size: 13px;
 }
 
-.apply-button {
-  width: 100%;
-  margin: 7px 0 14px;
+.grid-paste-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+  padding: 8px 10px;
+  border: 1px solid #cdd9e8;
+  border-radius: 6px;
+  color: #4b5b71;
+  background: #f6f9fd;
+  font-size: 11px;
+}
+
+.grid-paste-guide strong {
+  color: #173f80;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .binding-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
-  margin-bottom: 10px;
+  margin: 12px 0 10px;
 }
 
 .data-summary {
@@ -326,6 +329,7 @@ select {
   overflow: auto;
   border: 1px solid #d8e0eb;
   border-radius: 6px;
+  background: #fff;
 }
 
 .data-table {
@@ -355,8 +359,21 @@ select {
 
 .data-table thead th {
   position: sticky;
-  top: 0;
   z-index: 3;
+}
+
+.data-table .column-letter-row th {
+  top: 0;
+  height: 27px;
+  padding: 3px 8px;
+  color: #66758b;
+  background: #eaf0f7;
+  font-size: 11px;
+  text-align: center;
+}
+
+.data-table .data-header-row th {
+  top: 27px;
 }
 
 .data-table th:first-child,
@@ -376,6 +393,28 @@ select {
 
 .data-table .is-bound-column {
   background: #eef5ff;
+}
+
+.data-table [data-grid-row] {
+  outline: none;
+  cursor: cell;
+}
+
+.data-table .is-active-cell {
+  position: relative;
+  z-index: 5;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #2167b5;
+}
+
+.data-table .is-active-cell::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
+  background: #2167b5;
 }
 
 .column-heading-text {

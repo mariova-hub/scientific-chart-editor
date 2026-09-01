@@ -508,3 +508,31 @@ Data / Chart境界の幅はAppのSession Stateとし、`calculateDataPaneWidth`�
 ### 17.4 Phase 1 / 2互換性
 
 Persistence hydrationは`schemaVersion: "0.1"`を維持し、欠落した`chart.bar`、`series.barBindings`、bar opacity / widthだけをdefault補完する。旧scatterのX/Y/Y Error参照をCategory / Value / Errorの初期候補としてコピーするが、旧fieldは変更しない。明示された不正orientation、範囲外style、broken referenceは補正せず拒否し、validation成功後だけatomic loadする。
+
+## 18. Phase 3B-1 editable gridとPaste境界
+
+### 18.1 Active Cell
+
+Active Cellは`{ rowIndex, columnIndex }`のSession Stateであり、A1を`{0,0}`とする。row 0はDatasetの`columns[].name`へ対応する見出し行、row 1以降は`rows[rowIndex - 1]`へ対応する。Data Gridはクリック・focus・Arrow / Tab / Enterでこの状態だけを更新し、Project Stateや保存ファイルへ混入させない。
+
+### 18.2 Rectangular Paste Pipeline
+
+```text
+paste event
+  → parseClipboardTsv（矩形 CellValue[][]）
+  → applyRectangularPaste（範囲・上限事前検証、候補Dataset生成）
+  → candidate Projectでlog等を検証
+  → paste-range ProjectActionを1回dispatch
+```
+
+`parseCell`を単一セルの意味変換、`parseClipboardTsv`を行列構造の解釈として分離する。初回と追加Pasteは同じ`applyRectangularPaste`を使用し、旧`replace-dataset` actionは明示的な全置換/import用境界として通常Pasteから外す。
+
+### 18.3 Atomicity・ID・binding
+
+Paste関数は矩形形状、開始座標、最大256列・10,000データ行を候補生成前に検証する。失敗は新しいDatasetを返さず、UIはdispatchしないためProjectとActive Cellを維持する。成功時は既存Datasetを直接mutateせず、新しいDataset snapshotを生成する。
+
+既存Dataset ID、Column ID、Row IDは位置が存続する限りコピーして維持し、拡張分だけ`crypto.randomUUID()`で追加する。Reducerは既存Datasetへの`paste-range`でChart Modelを変更しない。初回だけ既存の`projectWithDataset`を利用して先頭2列を初期binding候補にする。この構造により1 Paste = 1 history候補として将来のUndo / Redoへ接続できる。
+
+### 18.4 Data Grid UI
+
+Gridは空プロジェクトでもA1を初期active cellとして表示する。列記号行、見出し行、データ行、行番号を表示し、active cellを青い枠で示す。paste eventはfocusされたセルから親Gridへbubbleさせ、Ctrl+V / Cmd+Vをブラウザ標準経路で処理する。binding badgeはDatasetとChart Modelから引き続き派生し、部分Paste後に同じstable column IDを指す。

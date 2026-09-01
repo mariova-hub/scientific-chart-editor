@@ -8,7 +8,12 @@ import { DataGrid } from './components/DataGrid/DataGrid'
 import { FormatPane } from './components/FormatPane/FormatPane'
 import { PaneResizeHandle } from './components/PaneResizeHandle'
 import { Toolbar } from './components/Toolbar/Toolbar'
-import { parseTsv, TsvParseError } from './data/tsv/parseTsv'
+import { parseClipboardTsv } from './data/tsv/parseTsv'
+import {
+  applyRectangularPaste,
+  cellAddress,
+  type ActiveCell,
+} from './data/grid/pasteRange'
 import { resolveBarSeries, resolveScatterSeries } from './model/dataBinding'
 import { validateLogAxes } from './model/axisValidation'
 import { createEmptyProject } from './model/createProject'
@@ -65,10 +70,18 @@ function App() {
     dispatch(action)
   }
 
-  const handlePasteTable = (source: string) => {
+  const handlePasteRange = (start: ActiveCell, source: string) => {
     try {
-      const dataset = parseTsv(source)
-      const action = { type: 'replace-dataset', dataset } as const
+      const values = parseClipboardTsv(source)
+      const paste = applyRectangularPaste(project.datasets[0], {
+        start,
+        values,
+      })
+      if (!paste.ok) {
+        showMessage(paste.message, 'error')
+        return
+      }
+      const action = { type: 'paste-range', dataset: paste.dataset } as const
       const candidate = projectReducer(project, action)
       const logIssues = validateLogAxes(candidate)
       if (logIssues.length > 0) {
@@ -77,16 +90,11 @@ function App() {
       }
       dispatch(action)
       showMessage(
-        `${dataset.columns.length}列・${dataset.rows.length}行を取り込みました。`,
+        `${cellAddress(start)}から${paste.pastedRows}行×${paste.pastedColumns}列を貼り付けました。`,
         'success',
       )
-    } catch (error) {
-      showMessage(
-        error instanceof TsvParseError
-          ? error.message
-          : '表データを読み取れませんでした。',
-        'error',
-      )
+    } catch {
+      showMessage('クリップボードの表データを貼り付けられませんでした。', 'error')
     }
   }
 
@@ -150,7 +158,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3A</span>
+        <span className="phase-badge">v0.1 · Phase 3B-1</span>
       </header>
 
       <Toolbar
@@ -169,7 +177,7 @@ function App() {
       >
         <DataGrid
           project={project}
-          onPasteTable={handlePasteTable}
+          onPasteRange={handlePasteRange}
           onSelectColumn={(role, columnId) =>
             handleProjectAction({ type: 'set-binding', role, columnId })
           }

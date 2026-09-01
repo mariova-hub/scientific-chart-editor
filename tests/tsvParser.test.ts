@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { parseCell, parseTsv, TsvParseError } from '../src/data/tsv/parseTsv'
+import {
+  parseCell,
+  parseClipboardTsv,
+  parseTsv,
+  TsvParseError,
+} from '../src/data/tsv/parseTsv'
 import { sequentialIds } from './helpers'
 
 describe('TSV parser', () => {
@@ -52,5 +57,20 @@ describe('TSV parser', () => {
     const dataset = parseTsv('X\tY\n1', sequentialIds())
     expect(Object.values(dataset.rows[0].cells)).toEqual([1, null])
     expect(() => parseTsv('X\n1\t2', sequentialIds())).toThrow(TsvParseError)
+  })
+
+  it('parses each clipboard cell without treating every first row as a header', () => {
+    expect(parseClipboardTsv('SD\n0.08\n0.12')).toEqual([
+      ['SD'],
+      [0.08],
+      [0.12],
+    ])
+  })
+
+  it('pads a rectangular clipboard block with null cells', () => {
+    expect(parseClipboardTsv('1\t2\n3')).toEqual([
+      [1, 2],
+      [3, null],
+    ])
   })
 })

@@ -24,6 +24,20 @@ export function parseCell(rawCell: string): CellValue {
   return rawCell
 }
 
+export function parseClipboardTsv(source: string): CellValue[][] {
+  const normalized = source.replace(/\r\n?/g, '\n')
+  const lines = normalized.split('\n')
+  while (lines.length > 1 && lines.at(-1) === '') lines.pop()
+
+  const rawRows = lines.map((line) => line.split('\t'))
+  const width = Math.max(...rawRows.map((row) => row.length))
+  return rawRows.map((row) =>
+    Array.from({ length: width }, (_, columnIndex) =>
+      parseCell(row[columnIndex] ?? ''),
+    ),
+  )
+}
+
 export function parseTsv(
   source: string,
   idFactory: IdFactory = randomId,
