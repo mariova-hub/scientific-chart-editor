@@ -1,7 +1,7 @@
 import { CHART_SIZE_LIMITS, DATA_LIMITS } from './limits'
 import { STYLE_LIMITS } from './limits'
 import { resolveDataRange } from './dataBinding'
-import { validateLogAxes } from './axisValidation'
+import { validateLogAxes, validatePlotAreaSettings } from './axisValidation'
 import type {
   AxisModel,
   DataRangeRef,
@@ -141,11 +141,48 @@ function validateAxis(axis: AxisModel, path: string): ValidationIssue[] {
   if (!isHexColor(axis.labels.color)) {
     issues.push(issue('style.color', `${path}.labels.color`, '軸ラベルの色は#RRGGBB形式にしてください。'))
   }
+  if (!isHexColor(axis.title.style.color)) {
+    issues.push(issue('style.color', `${path}.title.style.color`, '軸タイトルの色は#RRGGBB形式にしてください。'))
+  }
+  for (const [kind, grid, label] of [
+    ['majorStyle', axis.gridLines.majorStyle, '主グリッド線'],
+    ['minorStyle', axis.gridLines.minorStyle, '補助グリッド線'],
+  ] as const) {
+    if (!isHexColor(grid.color)) {
+      issues.push(issue('style.color', `${path}.gridLines.${kind}.color`, `${label}の色は#RRGGBB形式にしてください。`))
+    }
+    if (!inRange(grid.widthPx, 0, STYLE_LIMITS.maxLineWidthPx)) {
+      issues.push(issue('style.width', `${path}.gridLines.${kind}.widthPx`, `${label}の太さが許容範囲外です。`))
+    }
+  }
   if (!inRange(axis.line.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx)) {
     issues.push(issue('style.width', `${path}.line.widthPx`, '軸線の太さが許容範囲外です。'))
   }
   if (!inRange(axis.labels.sizePx, STYLE_LIMITS.minFontSizePx, STYLE_LIMITS.maxFontSizePx)) {
     issues.push(issue('style.fontSize', `${path}.labels.sizePx`, '軸ラベルの文字サイズが許容範囲外です。'))
+  }
+  if (!inRange(axis.title.style.sizePx, STYLE_LIMITS.minFontSizePx, STYLE_LIMITS.maxFontSizePx)) {
+    issues.push(issue('style.fontSize', `${path}.title.style.sizePx`, '軸タイトルの文字サイズが許容範囲外です。'))
+  }
+  if (!inRange(axis.ticks.majorLengthPx, STYLE_LIMITS.minTickLengthPx, STYLE_LIMITS.maxTickLengthPx)) {
+    issues.push(issue('style.tickLength', `${path}.ticks.majorLengthPx`, '主目盛の長さが許容範囲外です。'))
+  }
+  if (!inRange(axis.ticks.minorLengthPx, STYLE_LIMITS.minTickLengthPx, STYLE_LIMITS.maxTickLengthPx)) {
+    issues.push(issue('style.tickLength', `${path}.ticks.minorLengthPx`, '補助目盛の長さが許容範囲外です。'))
+  }
+  if (!inRange(axis.ticks.lineWidthPx, STYLE_LIMITS.minTickLineWidthPx, STYLE_LIMITS.maxTickLineWidthPx)) {
+    issues.push(issue('style.tickWidth', `${path}.ticks.lineWidthPx`, '目盛線の太さが許容範囲外です。'))
+  }
+  if (!inRange(axis.labels.angleDeg, STYLE_LIMITS.minLabelAngleDeg, STYLE_LIMITS.maxLabelAngleDeg)) {
+    issues.push(issue('style.angle', `${path}.labels.angleDeg`, '目盛ラベルの角度が許容範囲外です。'))
+  }
+  if (
+    axis.numberFormat.kind !== 'auto' &&
+    axis.numberFormat.kind !== 'integer' &&
+    (!Number.isInteger(axis.numberFormat.decimalPlaces) ||
+      !inRange(axis.numberFormat.decimalPlaces, STYLE_LIMITS.minDecimalPlaces, STYLE_LIMITS.maxDecimalPlaces))
+  ) {
+    issues.push(issue('style.decimalPlaces', `${path}.numberFormat.decimalPlaces`, '小数点以下桁数が許容範囲外です。'))
   }
   return issues
 }
@@ -196,6 +233,7 @@ export function validateProjectSemantics(
   project.chart.axes.forEach((axis, index) => {
     issues.push(...validateAxis(axis, `project.chart.axes[${index}]`))
   })
+  issues.push(...validatePlotAreaSettings(project))
   issues.push(...validateLogAxes(project))
 
   const series = project.chart.series[0]
@@ -280,6 +318,7 @@ export function validateProjectSemantics(
     [isHexColor(project.chart.style.backgroundColor), 'project.chart.style.backgroundColor', 'グラフ背景色'],
     [isHexColor(project.chart.style.plotBackgroundColor), 'project.chart.style.plotBackgroundColor', 'プロット背景色'],
     [isHexColor(project.chart.title.style.color), 'project.chart.title.style.color', 'タイトル色'],
+    [isHexColor(project.chart.plotArea.border.color), 'project.chart.plotArea.border.color', 'プロット領域の枠線色'],
     [isHexColor(series.style.color), 'project.chart.series[0].style.color', '系列基準色'],
     [isHexColor(series.style.marker.fillColor), 'project.chart.series[0].style.marker.fillColor', 'マーカー塗り色'],
     [isHexColor(series.style.marker.borderColor), 'project.chart.series[0].style.marker.borderColor', 'マーカー枠線色'],

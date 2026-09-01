@@ -2,7 +2,7 @@ import type {
   AxisModel,
   BarRowBindings,
   ErrorBarModel,
-  FontStyleModel,
+  GridLineAppearanceModel,
   SeriesModel,
 } from './types'
 
@@ -12,8 +12,40 @@ export function defaultAxisLine(): AxisModel['line'] {
   return { visible: true, color: '#4b5563', widthPx: 1 }
 }
 
-export function defaultAxisLabels(): FontStyleModel {
-  return { family: DEFAULT_FONT_FAMILY, sizePx: 12, color: '#374151' }
+export function defaultAxisLabels(): AxisModel['labels'] {
+  return {
+    family: DEFAULT_FONT_FAMILY,
+    sizePx: 12,
+    color: '#374151',
+    visible: true,
+    bold: false,
+    angleDeg: 0,
+  }
+}
+
+export function defaultAxisTitleStyle() {
+  return {
+    family: DEFAULT_FONT_FAMILY,
+    sizePx: 14,
+    color: '#172033',
+    bold: false,
+  }
+}
+
+export function defaultAxisTickStyle() {
+  return {
+    majorLengthPx: 6,
+    minorLengthPx: 3,
+    lineWidthPx: 1,
+  }
+}
+
+export function defaultMajorGridStyle(): GridLineAppearanceModel {
+  return { color: '#d7dde7', widthPx: 1, style: 'solid' }
+}
+
+export function defaultMinorGridStyle(): GridLineAppearanceModel {
+  return { color: '#e8ecf2', widthPx: 0.5, style: 'dot' }
 }
 
 export function defaultErrorBarStyle(): ErrorBarModel['style'] {
@@ -58,6 +90,19 @@ export function defaultChartStyle() {
   return {
     backgroundColor: '#ffffff',
     plotBackgroundColor: '#ffffff',
+  }
+}
+
+export function defaultPlotArea() {
+  return {
+    border: { visible: false, color: '#4b5563', widthPx: 1 },
+    margin: {
+      mode: 'auto' as const,
+      topPx: 64,
+      rightPx: 28,
+      bottomPx: 70,
+      leftPx: 78,
+    },
   }
 }
 

@@ -1,11 +1,13 @@
 import { createDataRange, projectWithDataset } from '../model/createProject'
 import type {
+  AxisModel,
   AxisScaleType,
+  AxisNumberFormat,
   BarOrientation,
   ChartType,
   DataOrientation,
   DatasetModel,
-  FontStyleModel,
+  GridLineStyle,
   LegendPosition,
   LineStyle,
   MarkerShape,
@@ -39,6 +41,13 @@ export type ProjectAction =
   | { type: 'set-bar-orientation'; value: BarOrientation }
   | { type: 'set-bar-gap'; value: number }
   | { type: 'set-axis-title'; axisId: string; title: string }
+  | { type: 'set-axis-title-visible'; axisId: string; visible: boolean }
+  | {
+      type: 'set-axis-title-style'
+      axisId: string
+      field: keyof AxisModel['title']['style']
+      value: string | number | boolean
+    }
   | {
       type: 'set-axis-bound'
       axisId: string
@@ -54,6 +63,12 @@ export type ProjectAction =
       visible: boolean
     }
   | { type: 'set-axis-tick-direction'; axisId: string; value: TickDirection }
+  | {
+      type: 'set-axis-tick-style'
+      axisId: string
+      field: 'majorLengthPx' | 'minorLengthPx' | 'lineWidthPx'
+      value: number
+    }
   | { type: 'set-axis-scale-type'; axisId: string; value: AxisScaleType }
   | { type: 'set-axis-reversed'; axisId: string; value: boolean }
   | {
@@ -69,11 +84,19 @@ export type ProjectAction =
       visible: boolean
     }
   | {
+      type: 'set-axis-grid-style'
+      axisId: string
+      kind: 'major' | 'minor'
+      field: 'color' | 'widthPx' | 'style'
+      value: string | number | GridLineStyle
+    }
+  | {
       type: 'set-axis-label-style'
       axisId: string
-      field: keyof FontStyleModel
-      value: string | number
+      field: keyof AxisModel['labels']
+      value: string | number | boolean
     }
+  | { type: 'set-axis-number-format'; axisId: string; value: AxisNumberFormat }
   | { type: 'set-chart-title-text'; value: string }
   | { type: 'set-chart-title-visible'; value: boolean }
   | {
@@ -91,6 +114,17 @@ export type ProjectAction =
       type: 'set-chart-background'
       field: 'backgroundColor' | 'plotBackgroundColor'
       value: string
+    }
+  | {
+      type: 'set-plot-area-border'
+      field: 'visible' | 'color' | 'widthPx'
+      value: boolean | string | number
+    }
+  | { type: 'set-plot-margin-mode'; value: 'auto' | 'manual' }
+  | {
+      type: 'set-plot-margin'
+      field: 'topPx' | 'rightPx' | 'bottomPx' | 'leftPx'
+      value: number
     }
   | {
       type: 'set-series-marker'
@@ -377,6 +411,39 @@ export function projectReducer(
       style: { ...project.chart.style, [action.field]: action.value },
     })
   }
+  if (action.type === 'set-plot-area-border') {
+    return withChart(project, {
+      ...project.chart,
+      plotArea: {
+        ...project.chart.plotArea,
+        border: {
+          ...project.chart.plotArea.border,
+          [action.field]: action.value,
+        },
+      },
+    })
+  }
+  if (action.type === 'set-plot-margin-mode') {
+    return withChart(project, {
+      ...project.chart,
+      plotArea: {
+        ...project.chart.plotArea,
+        margin: { ...project.chart.plotArea.margin, mode: action.value },
+      },
+    })
+  }
+  if (action.type === 'set-plot-margin') {
+    return withChart(project, {
+      ...project.chart,
+      plotArea: {
+        ...project.chart.plotArea,
+        margin: {
+          ...project.chart.plotArea.margin,
+          [action.field]: action.value,
+        },
+      },
+    })
+  }
   if (action.type === 'set-legend-visible') {
     return withChart(project, {
       ...project.chart,
@@ -475,6 +542,18 @@ export function projectReducer(
     if (action.type === 'set-axis-title') {
       return { ...axis, title: { ...axis.title, text: action.title } }
     }
+    if (action.type === 'set-axis-title-visible') {
+      return { ...axis, title: { ...axis.title, visible: action.visible } }
+    }
+    if (action.type === 'set-axis-title-style') {
+      return {
+        ...axis,
+        title: {
+          ...axis.title,
+          style: { ...axis.title.style, [action.field]: action.value },
+        },
+      }
+    }
     if (action.type === 'set-axis-bound') {
       return {
         ...axis,
@@ -523,6 +602,12 @@ export function projectReducer(
     if (action.type === 'set-axis-tick-direction') {
       return { ...axis, ticks: { ...axis.ticks, direction: action.value } }
     }
+    if (action.type === 'set-axis-tick-style') {
+      return {
+        ...axis,
+        ticks: { ...axis.ticks, [action.field]: action.value },
+      }
+    }
     if (action.type === 'set-axis-scale-type') {
       return { ...axis, scale: { ...axis.scale, type: action.value } }
     }
@@ -539,11 +624,27 @@ export function projectReducer(
         gridLines: { ...axis.gridLines, [key]: action.visible },
       }
     }
+    if (action.type === 'set-axis-grid-style') {
+      const key = action.kind === 'major' ? 'majorStyle' : 'minorStyle'
+      return {
+        ...axis,
+        gridLines: {
+          ...axis.gridLines,
+          [key]: {
+            ...axis.gridLines[key],
+            [action.field]: action.value,
+          },
+        },
+      }
+    }
     if (action.type === 'set-axis-label-style') {
       return {
         ...axis,
         labels: { ...axis.labels, [action.field]: action.value },
       }
+    }
+    if (action.type === 'set-axis-number-format') {
+      return { ...axis, numberFormat: action.value }
     }
     return axis
   })

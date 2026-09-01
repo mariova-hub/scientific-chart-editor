@@ -113,13 +113,13 @@ describe('Plotly adapter', () => {
       autorange: false,
       range: [1, 0],
       ticks: 'inside',
-      ticklen: 10,
+      ticklen: 6,
       showgrid: false,
       showline: true,
       linecolor: '#123456',
       linewidth: 3,
       tickfont: { family: 'Georgia', size: 15 },
-      minor: { dtick: 0.1, ticks: 'inside', showgrid: true, ticklen: 10 },
+      minor: { dtick: 0.1, ticks: 'inside', showgrid: true, ticklen: 3 },
     })
   })
 

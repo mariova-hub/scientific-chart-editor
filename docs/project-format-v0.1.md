@@ -697,3 +697,58 @@ Phase 3B-5はProject JSONを変更せず、`schemaVersion: "0.1"`とPhase 3B-4�
 - UIの「値」「誤差範囲」は既存`valueRowId` / `errorRowId`を使用する。誤差範囲の「なし」は`errorRowId: null`であり、broken referenceとは異なる。
 - `labelColumnId`は通常UIから非表示にするが、既存ファイルの値を保持する。有効な保存値がなければ表示時だけ先頭columnを候補とし、補完IDや`2行目（平均）`等の表示文字列をProjectへ書き戻さない。
 - Phase 1〜3B-4ファイルのhydration、runtime validation、atomic load、unknown field処理は変更しない。UI変更だけを理由とするmigrationは行わない。
+
+## 23. Phase 3C 軸・プロット領域書式の保存契約
+
+Phase 3Cも`schemaVersion: "0.1"`を維持し、Scientific Chart Editorの意味値として次を保存する。
+
+```json
+{
+  "chart": {
+    "plotArea": {
+      "border": { "visible": true, "color": "#4B5563", "widthPx": 1.5 },
+      "margin": {
+        "mode": "manual",
+        "topPx": 50,
+        "rightPx": 40,
+        "bottomPx": 90,
+        "leftPx": 100
+      }
+    },
+    "axes": [{
+      "title": {
+        "visible": true,
+        "text": "濃度",
+        "style": { "family": "Arial", "sizePx": 14, "color": "#172033", "bold": true }
+      },
+      "ticks": {
+        "majorLengthPx": 6,
+        "minorLengthPx": 3,
+        "lineWidthPx": 1
+      },
+      "labels": {
+        "visible": true,
+        "family": "Arial",
+        "sizePx": 12,
+        "color": "#374151",
+        "bold": false,
+        "angleDeg": 0
+      },
+      "numberFormat": { "kind": "decimal", "decimalPlaces": 2 },
+      "gridLines": {
+        "majorStyle": { "color": "#D7DDE7", "widthPx": 1, "style": "solid" },
+        "minorStyle": { "color": "#E8ECF2", "widthPx": 0.5, "style": "dot" }
+      }
+    }]
+  }
+}
+```
+
+- `numberFormat.kind`は`auto | integer | decimal | scientific`。後二者だけ`decimalPlaces`を持ち、0〜10の整数とする。Plotlyの`.2f`や`.1e`は保存しない。
+- Grid Line Styleは`solid | dash | dot`。Plotly dash、layout axis、shape JSONは保存しない。
+- tick lengthは0〜30、tick line / grid / plot border widthは0〜12、label angleは-180〜180、font sizeは8〜72の有限numberとする。既存axis lineは従来どおり0.5〜12とする。
+- margin各辺は0〜500pxの整数としてUIから確定し、manual時はchart size内へ100px以上のプロット幅・高さを残す。`auto`でも手動値は再利用用の意味値として保存する。
+- 色は従来どおり`#RRGGBB`。明示された不正色、enum、数値、manual margin整合不良はdefaultで修正せず読み込みを拒否する。
+- `cross` tick enumは既存ファイルのround-trip互換のため有効な既知値として残すが、新規UIから生成しない。派生したPlotly互換表現は保存しない。
+
+Phase 3C以前の`0.1`ファイルでは、欠落したaxis title style、tick length / width、label visibility / bold / angle、number format、major/minor grid style、chart plotAreaを欠落時だけdefault hydrationする。明示fieldはruntime structure validationとsemantic validationを通し、成功後に一括反映する。Selection、入力draft、互換警告、Plotly figure、SVG文字列は保存対象外である。

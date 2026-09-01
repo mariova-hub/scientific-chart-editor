@@ -180,7 +180,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3B-5</span>
+        <span className="phase-badge">v0.1 · Phase 3C</span>
       </header>
 
       <Toolbar

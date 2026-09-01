@@ -651,3 +651,50 @@ Phase 3B-5では`BarRowBindings`を変更せず、Data Paneに表示用のtransl
 ```
 
 この表示helperはDatasetやbindingを変更しない。Value / Errorのselectorは同じhelperを利用して「値」「誤差範囲」として表示し、Errorのnull bindingは「なし」とする。Model enum、Reducerのstable ID action、runtime validation、Resolver、Plotly Adapter、PersistenceはPhase 3B-4のままである。
+
+## 23. Phase 3C 軸書式・プロット領域境界
+
+### 23.1 renderer-neutral Style Model
+
+Axis ModelはPlotlyのaxis objectを保持せず、次の意味構造を正規状態とする。
+
+```text
+Axis
+  ├─ title { visible, text, style { family, sizePx, color, bold } }
+  ├─ ticks
+  │    ├─ major/minor interval・visible
+  │    ├─ direction
+  │    └─ majorLengthPx / minorLengthPx / lineWidthPx
+  ├─ labels { visible, family, sizePx, color, bold, angleDeg }
+  ├─ numberFormat
+  │    ├─ auto
+  │    ├─ integer
+  │    ├─ decimal { decimalPlaces }
+  │    └─ scientific { decimalPlaces }
+  ├─ line { visible, color, widthPx }
+  └─ gridLines
+       ├─ majorVisible / minorVisible
+       └─ majorStyle / minorStyle { color, widthPx, style }
+
+Chart.plotArea
+  ├─ border { visible, color, widthPx }
+  └─ margin { mode, topPx, rightPx, bottomPx, leftPx }
+```
+
+grid styleは`solid | dash | dot`、margin modeは`auto | manual`であり、Plotlyのdash値、shape、paper座標、tickformat文字列をModelへ混入させない。
+
+### 23.2 UI action・検証
+
+Format Paneは意味groupごとにProjectActionを発行し、deep mutationを行わない。checkbox、色、enum、文字列は即時、数値はdraft確定後に`prepareProjectAction`へ渡す。候補Projectに対して軸style範囲、数値書式、小数桁、角度、プロット枠線、余白と最小プロット寸法を検証し、成功した単一actionだけをReducerへ確定する。この粒度は将来のhistory層で1操作として記録できる。
+
+数値軸／カテゴリ軸は既存`isNumericAxis` / `isCategoryAxis`から導出する。カテゴリ軸ではrange、interval、log、number format、minor numeric axisをRenderer入力へ渡さない一方、ラベル角度・font、軸線、主grid、タイトルは共通Styleを適用する。
+
+### 23.3 Renderer Adapter
+
+Plotly Adapterだけが、number formatからd3 tickformat、grid styleからdash、Font ModelからPlotly font、plot borderからpaper座標のrect shape、Margin Modelからlayout margin / automarginへ変換する。手動marginではaxis automarginを無効、自動marginでは保存された基本余白を渡しつつaxis automarginを有効にする。同じ`toPlotlyFigure`を画面とSVG exportが利用するため、export専用のChart Model変更を行わない。
+
+`cross` tickは旧Model値として受理するが、AdapterはPlotlyで表現可能なinsideへ互換変換する。新規UIはcrossを選択肢にせず、旧値を開いた場合だけ互換状態を説明する。
+
+### 23.4 Default hydration
+
+Phase 3C以前の`0.1`ファイルで新fieldが欠落する場合、Persistence境界がAxis title style、tick length / width、label visibility / bold / angle、number format、major/minor grid style、plot border / marginを安全なdefaultで補う。明示された不正enum、型、範囲、色は補正せず、semantic validation完了後だけatomic loadする。

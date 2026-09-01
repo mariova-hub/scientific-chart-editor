@@ -8,6 +8,8 @@ import type {
 import {
   defaultAxisLabels,
   defaultAxisLine,
+  defaultAxisTickStyle,
+  defaultAxisTitleStyle,
   defaultBarOptions,
   defaultBarRowBindings,
   defaultBarStyle,
@@ -15,6 +17,9 @@ import {
   defaultErrorBarStyle,
   defaultLineStyle,
   defaultMarkerStyle,
+  defaultMajorGridStyle,
+  defaultMinorGridStyle,
+  defaultPlotArea,
   defaultTitleStyle,
 } from './defaults'
 
@@ -30,7 +35,11 @@ function createAxis(
     id: idFactory(),
     dimension,
     position: dimension === 'x' ? 'bottom' : 'left',
-    title: { visible: true, text: dimension === 'x' ? 'X' : 'Y' },
+    title: {
+      visible: true,
+      text: dimension === 'x' ? 'X' : 'Y',
+      style: defaultAxisTitleStyle(),
+    },
     scale: {
       type: 'linear',
       minimum: null,
@@ -43,8 +52,14 @@ function createAxis(
       majorVisible: true,
       minorVisible: false,
       direction: 'outside',
+      ...defaultAxisTickStyle(),
     },
-    gridLines: { majorVisible: true, minorVisible: false },
+    gridLines: {
+      majorVisible: true,
+      minorVisible: false,
+      majorStyle: defaultMajorGridStyle(),
+      minorStyle: defaultMinorGridStyle(),
+    },
     line: defaultAxisLine(),
     labels: defaultAxisLabels(),
     numberFormat: { kind: 'auto' },
@@ -87,6 +102,7 @@ export function createEmptyProject(
       legend: { visible: false, position: 'right' },
       size: { widthPx: 760, heightPx: 480 },
       style: defaultChartStyle(),
+      plotArea: defaultPlotArea(),
       axes: [xAxis, yAxis],
       series: [
         {

@@ -3,6 +3,8 @@ import { validateProjectSemantics } from '../model/projectValidation'
 import {
   defaultAxisLabels,
   defaultAxisLine,
+  defaultAxisTickStyle,
+  defaultAxisTitleStyle,
   defaultBarOptions,
   defaultBarRowBindings,
   defaultBarStyle,
@@ -10,6 +12,9 @@ import {
   defaultErrorBarStyle,
   defaultLineStyle,
   defaultMarkerStyle,
+  defaultMajorGridStyle,
+  defaultMinorGridStyle,
+  defaultPlotArea,
   defaultTitleStyle,
 } from '../model/defaults'
 import type {
@@ -59,17 +64,48 @@ function hydrateProjectV01(value: unknown): unknown {
     ? chart.axes.map((axis) => {
         if (!isRecord(axis)) return axis
         const ticks = isRecord(axis.ticks) ? axis.ticks : axis.ticks
+        const title = isRecord(axis.title)
+          ? {
+              ...axis.title,
+              style: valueOrDefault(axis.title.style, defaultAxisTitleStyle()),
+            }
+          : axis.title
+        const labels = isRecord(axis.labels)
+          ? { ...defaultAxisLabels(), ...axis.labels }
+          : axis.labels
+        const gridLines = isRecord(axis.gridLines)
+          ? {
+              ...axis.gridLines,
+              majorStyle: valueOrDefault(
+                axis.gridLines.majorStyle,
+                defaultMajorGridStyle(),
+              ),
+              minorStyle: valueOrDefault(
+                axis.gridLines.minorStyle,
+                defaultMinorGridStyle(),
+              ),
+            }
+          : axis.gridLines
         return {
           ...axis,
+          title,
           ticks: isRecord(ticks)
             ? {
                 ...ticks,
                 majorVisible: valueOrDefault(ticks.majorVisible, true),
                 minorVisible: valueOrDefault(ticks.minorVisible, false),
+                ...Object.fromEntries(
+                  Object.entries(defaultAxisTickStyle()).map(([key, fallback]) => [
+                    key,
+                    valueOrDefault(ticks[key], fallback),
+                  ]),
+                ),
               }
             : ticks,
+          gridLines,
           line: valueOrDefault(axis.line, defaultAxisLine()),
-          labels: valueOrDefault(axis.labels, defaultAxisLabels()),
+          labels: valueOrDefault(labels, defaultAxisLabels()),
+          numberFormat: valueOrDefault(axis.numberFormat, { kind: 'auto' }),
         }
       })
     : chart.axes
@@ -167,6 +203,7 @@ function hydrateProjectV01(value: unknown): unknown {
       series,
       title,
       style: valueOrDefault(chart.style, defaultChartStyle()),
+      plotArea: valueOrDefault(chart.plotArea, defaultPlotArea()),
     },
   }
 }
@@ -233,6 +270,70 @@ function isDataset(value: unknown): value is DatasetModel {
   return columnsAreValid && rowsAreValid
 }
 
+function isFontStyle(value: unknown, requireBold = false): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.family === 'string' &&
+    typeof value.sizePx === 'number' &&
+    Number.isFinite(value.sizePx) &&
+    typeof value.color === 'string' &&
+    (!requireBold || typeof value.bold === 'boolean')
+  )
+}
+
+function isLineAppearance(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.visible === 'boolean' &&
+    typeof value.color === 'string' &&
+    typeof value.widthPx === 'number' &&
+    Number.isFinite(value.widthPx)
+  )
+}
+
+function isGridLineAppearance(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.color === 'string' &&
+    typeof value.widthPx === 'number' &&
+    Number.isFinite(value.widthPx) &&
+    ['solid', 'dash', 'dot'].includes(String(value.style))
+  )
+}
+
+function isAxisNumberFormat(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  if (value.kind === 'auto' || value.kind === 'integer') return true
+  return (
+    (value.kind === 'decimal' || value.kind === 'scientific') &&
+    typeof value.decimalPlaces === 'number' &&
+    Number.isFinite(value.decimalPlaces)
+  )
+}
+
+function isPlotArea(value: unknown): boolean {
+  if (!isRecord(value) || !isLineAppearance(value.border) || !isRecord(value.margin)) {
+    return false
+  }
+  const margin = value.margin
+  return (
+    (margin.mode === 'auto' || margin.mode === 'manual') &&
+    ['topPx', 'rightPx', 'bottomPx', 'leftPx'].every(
+      (key) => typeof margin[key] === 'number' && Number.isFinite(margin[key]),
+    )
+  )
+}
+
+function isAxisLabels(value: unknown): value is AxisModel['labels'] {
+  return (
+    isRecord(value) &&
+    isFontStyle(value, true) &&
+    typeof value.visible === 'boolean' &&
+    typeof value.angleDeg === 'number' &&
+    Number.isFinite(value.angleDeg)
+  )
+}
+
 function isAxis(value: unknown): value is AxisModel {
   if (
     !isRecord(value) ||
@@ -242,6 +343,7 @@ function isAxis(value: unknown): value is AxisModel {
     !isRecord(value.title) ||
     typeof value.title.visible !== 'boolean' ||
     typeof value.title.text !== 'string' ||
+    !isFontStyle(value.title.style, true) ||
     !isRecord(value.scale) ||
     (value.scale.type !== 'linear' && value.scale.type !== 'log') ||
     !isFiniteNumberOrNull(value.scale.minimum) ||
@@ -252,22 +354,23 @@ function isAxis(value: unknown): value is AxisModel {
     !isRecord(value.ticks.minorInterval) ||
     typeof value.ticks.majorVisible !== 'boolean' ||
     typeof value.ticks.minorVisible !== 'boolean' ||
+    typeof value.ticks.majorLengthPx !== 'number' ||
+    !Number.isFinite(value.ticks.majorLengthPx) ||
+    typeof value.ticks.minorLengthPx !== 'number' ||
+    !Number.isFinite(value.ticks.minorLengthPx) ||
+    typeof value.ticks.lineWidthPx !== 'number' ||
+    !Number.isFinite(value.ticks.lineWidthPx) ||
     !['inside', 'outside', 'cross', 'none'].includes(
       String(value.ticks.direction),
     ) ||
     !isRecord(value.gridLines) ||
     typeof value.gridLines.majorVisible !== 'boolean' ||
     typeof value.gridLines.minorVisible !== 'boolean' ||
-    !isRecord(value.line) ||
-    typeof value.line.visible !== 'boolean' ||
-    typeof value.line.color !== 'string' ||
-    typeof value.line.widthPx !== 'number' ||
-    !isRecord(value.labels) ||
-    typeof value.labels.family !== 'string' ||
-    typeof value.labels.sizePx !== 'number' ||
-    typeof value.labels.color !== 'string' ||
-    !isRecord(value.numberFormat) ||
-    value.numberFormat.kind !== 'auto' ||
+    !isGridLineAppearance(value.gridLines.majorStyle) ||
+    !isGridLineAppearance(value.gridLines.minorStyle) ||
+    !isLineAppearance(value.line) ||
+    !isAxisLabels(value.labels) ||
+    !isAxisNumberFormat(value.numberFormat) ||
     !hasValidExtensions(value)
   ) {
     return false
@@ -286,11 +389,12 @@ function isAxis(value: unknown): value is AxisModel {
     (minorInterval.mode === 'fixed' &&
       typeof minorInterval.step === 'number' &&
       Number.isFinite(minorInterval.step))
+  const axis = value as unknown as AxisModel
   return (
     majorValid &&
     minorValid &&
-    Number.isFinite(value.line.widthPx) &&
-    Number.isFinite(value.labels.sizePx)
+    Number.isFinite(axis.line.widthPx) &&
+    Number.isFinite(axis.labels.sizePx)
   )
 }
 
@@ -406,6 +510,7 @@ function isProjectState(value: unknown): value is ProjectState {
     !isRecord(value.chart.style) ||
     typeof value.chart.style.backgroundColor !== 'string' ||
     typeof value.chart.style.plotBackgroundColor !== 'string' ||
+    !isPlotArea(value.chart.plotArea) ||
     !Array.isArray(value.chart.axes) ||
     !value.chart.axes.every(isAxis) ||
     !Array.isArray(value.chart.series) ||

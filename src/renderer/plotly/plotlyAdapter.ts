@@ -1,4 +1,4 @@
-import type { Config, Data, Layout, LayoutAxis } from 'plotly.js'
+import type { Config, Data, Layout, LayoutAxis, Shape } from 'plotly.js'
 import {
   isCategoryAxis,
   resolveBarSeries,
@@ -7,6 +7,8 @@ import {
 import { CHART_SIZE_LIMITS } from '../../model/limits'
 import type {
   AxisModel,
+  AxisNumberFormat,
+  GridLineStyle,
   LegendPosition,
   LineStyle,
   MarkerShape,
@@ -59,6 +61,18 @@ function toPlotlyDash(style: LineStyle): 'solid' | 'dash' | 'dot' | 'dashdot' {
   return style === 'dash-dot' ? 'dashdot' : style
 }
 
+function toPlotlyGridDash(style: GridLineStyle): 'solid' | 'dash' | 'dot' {
+  return style
+}
+
+function toPlotlyTickFormat(format: AxisNumberFormat): string | undefined {
+  if (format.kind === 'auto') return undefined
+  if (format.kind === 'integer') return '.0f'
+  return format.kind === 'decimal'
+    ? `.${format.decimalPlaces}f`
+    : `.${format.decimalPlaces}e`
+}
+
 function toPlotlyMarker(shape: MarkerShape): MarkerShape {
   return shape
 }
@@ -87,10 +101,19 @@ function toPlotlyAxis(
   axis: AxisModel,
   values: number[],
   categoryAxis = false,
+  autoMargin = true,
 ): Partial<LayoutAxis> {
   const range = categoryAxis ? undefined : axisRange(axis, values)
   return {
-    title: { text: axis.title.visible ? escapePlotlyText(axis.title.text) : '' },
+    title: {
+      text: axis.title.visible ? escapePlotlyText(axis.title.text) : '',
+      font: {
+        family: axis.title.style.family,
+        size: axis.title.style.sizePx,
+        color: axis.title.style.color,
+        weight: axis.title.style.bold ? 'bold' : 'normal',
+      },
+    },
     type: categoryAxis ? 'category' : axis.scale.type,
     ...(categoryAxis
       ? { autorange: true as const }
@@ -106,10 +129,17 @@ function toPlotlyAxis(
             axis.ticks.majorInterval.step > 0
               ? axis.ticks.majorInterval.step
               : undefined,
+          tickformat: toPlotlyTickFormat(axis.numberFormat),
         }),
     showgrid: axis.gridLines.majorVisible,
+    gridcolor: axis.gridLines.majorStyle.color,
+    gridwidth: axis.gridLines.majorStyle.widthPx,
+    griddash: toPlotlyGridDash(axis.gridLines.majorStyle.style),
     ...(!categoryAxis ? { minor: {
       showgrid: axis.gridLines.minorVisible,
+      gridcolor: axis.gridLines.minorStyle.color,
+      gridwidth: axis.gridLines.minorStyle.widthPx,
+      griddash: toPlotlyGridDash(axis.gridLines.minorStyle.style),
       ticks: axis.ticks.minorVisible
         ? toPlotlyTicks(axis.ticks.direction)
         : '',
@@ -117,17 +147,17 @@ function toPlotlyAxis(
         axis.ticks.minorInterval.mode === 'fixed'
           ? axis.ticks.minorInterval.step
           : undefined,
-      ticklen: axis.ticks.direction === 'cross' ? 10 : 5,
+      ticklen: axis.ticks.minorLengthPx,
       tickcolor: axis.line.color,
-      tickwidth: axis.line.widthPx,
+      tickwidth: axis.ticks.lineWidthPx,
     } } : {}),
     zeroline: false,
     ticks: axis.ticks.majorVisible
       ? toPlotlyTicks(axis.ticks.direction)
       : '',
-    ticklen: axis.ticks.direction === 'cross' ? 10 : 5,
+    ticklen: axis.ticks.majorLengthPx,
     tickcolor: axis.line.color,
-    tickwidth: axis.line.widthPx,
+    tickwidth: axis.ticks.lineWidthPx,
     showline: axis.line.visible,
     linecolor: axis.line.color,
     linewidth: axis.line.widthPx,
@@ -135,8 +165,11 @@ function toPlotlyAxis(
       family: axis.labels.family,
       size: axis.labels.sizePx,
       color: axis.labels.color,
+      weight: axis.labels.bold ? 'bold' : 'normal',
     },
-    automargin: true,
+    showticklabels: axis.labels.visible,
+    tickangle: axis.labels.angleDeg,
+    automargin: autoMargin,
   }
 }
 
@@ -147,6 +180,8 @@ export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
   let trace: Data
   let xValues: number[] = []
   let yValues: number[] = []
+  const plotArea = project.chart.plotArea
+  const autoMargin = plotArea.margin.mode === 'auto'
 
   if (project.chart.type === 'bar') {
     const resolved = resolveBarSeries(project, series)
@@ -300,13 +335,38 @@ export function toPlotlyFigure(project: ProjectState): PlotlyFigure {
       showlegend: project.chart.legend.visible,
       legend: legendLayout(project.chart.legend.position),
       xaxis: xAxis
-        ? toPlotlyAxis(xAxis, xValues, isCategoryAxis(project, 'x'))
+        ? toPlotlyAxis(xAxis, xValues, isCategoryAxis(project, 'x'), autoMargin)
         : undefined,
       yaxis: yAxis
-        ? toPlotlyAxis(yAxis, yValues, isCategoryAxis(project, 'y'))
+        ? toPlotlyAxis(yAxis, yValues, isCategoryAxis(project, 'y'), autoMargin)
         : undefined,
       bargap: project.chart.type === 'bar' ? project.chart.bar.gapRatio : undefined,
-      margin: { l: 78, r: 28, t: 64, b: 70 },
+      margin: {
+        l: plotArea.margin.leftPx,
+        r: plotArea.margin.rightPx,
+        t: plotArea.margin.topPx,
+        b: plotArea.margin.bottomPx,
+      },
+      shapes: plotArea.border.visible
+        ? [
+            {
+              type: 'rect',
+              xref: 'paper',
+              yref: 'paper',
+              x0: 0,
+              y0: 0,
+              x1: 1,
+              y1: 1,
+              fillcolor: 'rgba(0,0,0,0)',
+              line: {
+                color: plotArea.border.color,
+                width: plotArea.border.widthPx,
+                dash: 'solid',
+              },
+              layer: 'above',
+            } as Partial<Shape>,
+          ]
+        : [],
       paper_bgcolor: project.chart.style.backgroundColor,
       plot_bgcolor: project.chart.style.plotBackgroundColor,
       font: {

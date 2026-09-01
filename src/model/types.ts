@@ -40,6 +40,7 @@ export type MarkerShape =
   | 'cross'
   | 'x'
 export type LineStyle = 'solid' | 'dash' | 'dot' | 'dash-dot'
+export type GridLineStyle = 'solid' | 'dash' | 'dot'
 export type LegendPosition = 'right' | 'left' | 'top' | 'bottom'
 export type ChartType = 'scatter' | 'bar'
 export type BarOrientation = 'vertical' | 'horizontal'
@@ -75,11 +76,35 @@ export interface LineAppearanceModel {
   widthPx: number
 }
 
+export interface GridLineAppearanceModel {
+  color: string
+  widthPx: number
+  style: GridLineStyle
+}
+
+export type AxisNumberFormat =
+  | { kind: 'auto' }
+  | { kind: 'integer' }
+  | { kind: 'decimal'; decimalPlaces: number }
+  | { kind: 'scientific'; decimalPlaces: number }
+
+export interface PlotMarginModel {
+  mode: 'auto' | 'manual'
+  topPx: number
+  rightPx: number
+  bottomPx: number
+  leftPx: number
+}
+
 export interface AxisModel {
   id: string
   dimension: AxisDimension
   position: AxisPosition
-  title: { visible: boolean; text: string }
+  title: {
+    visible: boolean
+    text: string
+    style: FontStyleModel & { bold: boolean }
+  }
   scale: {
     type: AxisScaleType
     minimum: number | null
@@ -92,14 +117,23 @@ export interface AxisModel {
     majorVisible: boolean
     minorVisible: boolean
     direction: TickDirection
+    majorLengthPx: number
+    minorLengthPx: number
+    lineWidthPx: number
   }
   gridLines: {
     majorVisible: boolean
     minorVisible: boolean
+    majorStyle: GridLineAppearanceModel
+    minorStyle: GridLineAppearanceModel
   }
   line: LineAppearanceModel
-  labels: FontStyleModel
-  numberFormat: { kind: 'auto' }
+  labels: FontStyleModel & {
+    visible: boolean
+    bold: boolean
+    angleDeg: number
+  }
+  numberFormat: AxisNumberFormat
   extensions?: Record<string, unknown>
 }
 
@@ -184,6 +218,10 @@ export interface ChartModel {
   style: {
     backgroundColor: string
     plotBackgroundColor: string
+  }
+  plotArea: {
+    border: LineAppearanceModel
+    margin: PlotMarginModel
   }
   axes: AxisModel[]
   series: SeriesModel[]

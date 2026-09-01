@@ -212,7 +212,7 @@ function ChartControls({
         )}
       </fieldset>
       <fieldset>
-        <legend>塗りつぶし</legend>
+        <legend>背景</legend>
         <ColorControl
           label="グラフ背景"
           value={project.chart.style.backgroundColor}
@@ -227,6 +227,75 @@ function ChartControls({
             onAction({ type: 'set-chart-background', field: 'plotBackgroundColor', value })
           }
         />
+      </fieldset>
+      <fieldset>
+        <legend>プロット領域</legend>
+        <CheckboxControl
+          label="枠線を表示"
+          checked={project.chart.plotArea.border.visible}
+          onChange={(value) =>
+            onAction({ type: 'set-plot-area-border', field: 'visible', value })
+          }
+        />
+        <ColorControl
+          label="枠線の色"
+          value={project.chart.plotArea.border.color}
+          onChange={(value) =>
+            onAction({ type: 'set-plot-area-border', field: 'color', value })
+          }
+        />
+        <NumberDraftInput
+          label="枠線の太さ (pt相当)"
+          value={project.chart.plotArea.border.widthPx}
+          minimum={0}
+          maximum={STYLE_LIMITS.maxLineWidthPx}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-plot-area-border', field: 'widthPx', value })
+          }}
+        />
+      </fieldset>
+      <fieldset>
+        <legend>プロット領域の余白</legend>
+        <label className="control-label">
+          <span>余白</span>
+          <select
+            value={project.chart.plotArea.margin.mode}
+            onChange={(event) =>
+              onAction({
+                type: 'set-plot-margin-mode',
+                value: event.target.value as 'auto' | 'manual',
+              })
+            }
+          >
+            <option value="auto">自動</option>
+            <option value="manual">手動</option>
+          </select>
+        </label>
+        {project.chart.plotArea.margin.mode === 'manual' && (
+          <div className="two-column-controls">
+            {([
+              ['topPx', '上 (px)'],
+              ['rightPx', '右 (px)'],
+              ['bottomPx', '下 (px)'],
+              ['leftPx', '左 (px)'],
+            ] as const).map(([field, label]) => (
+              <NumberDraftInput
+                key={field}
+                label={label}
+                value={project.chart.plotArea.margin[field]}
+                minimum={STYLE_LIMITS.minMarginPx}
+                maximum={STYLE_LIMITS.maxMarginPx}
+                integer
+                onCommit={(value) => {
+                  if (value !== null) onAction({ type: 'set-plot-margin', field, value })
+                }}
+              />
+            ))}
+          </div>
+        )}
+        <p className="muted-note">
+          自動ではラベルに応じて余白を確保します。手動値も保存され、自動へ戻した後に再利用できます。
+        </p>
       </fieldset>
       <fieldset>
         <legend>サイズ</legend>
@@ -275,21 +344,15 @@ function AxisControls({
     : null
   const numericAxis = isNumericAxis(project, axis.dimension)
   const categoryAxis = !numericAxis
+  const decimalPlaces =
+    axis.numberFormat.kind === 'decimal' || axis.numberFormat.kind === 'scientific'
+      ? axis.numberFormat.decimalPlaces
+      : 2
 
   return (
     <>
       <fieldset>
         <legend>軸のオプション</legend>
-        <label className="control-label">
-          <span>軸タイトル</span>
-          <input
-            type="text"
-            value={axis.title.text}
-            onChange={(event) =>
-              onAction({ type: 'set-axis-title', axisId: axis.id, title: event.target.value })
-            }
-          />
-        </label>
         {categoryAxis ? (
           <p className="muted-note category-axis-note">
             この軸はカテゴリ軸です。最小値・最大値・目盛間隔・対数設定は適用されません。
@@ -399,14 +462,148 @@ function AxisControls({
           >
             <option value="inside">内向き</option>
             <option value="outside">外向き</option>
-            <option value="cross">交差</option>
             <option value="none">なし</option>
+            {axis.ticks.direction === 'cross' && (
+              <option value="cross" disabled>交差（旧ファイル互換）</option>
+            )}
           </select>
         </label>
+        {axis.ticks.direction === 'cross' && (
+          <p className="muted-note">
+            旧ファイルの「交差」は保持されています。描画エンジンに真の交差目盛がないため、新規設定では内向き・外向き・なしを選択してください。
+          </p>
+        )}
+        <div className="two-column-controls">
+          <NumberDraftInput
+            label="主目盛の長さ (pt相当)"
+            value={axis.ticks.majorLengthPx}
+            minimum={STYLE_LIMITS.minTickLengthPx}
+            maximum={STYLE_LIMITS.maxTickLengthPx}
+            onCommit={(value) => {
+              if (value !== null) onAction({ type: 'set-axis-tick-style', axisId: axis.id, field: 'majorLengthPx', value })
+            }}
+          />
+          {!categoryAxis && (
+            <NumberDraftInput
+              label="補助目盛の長さ (pt相当)"
+              value={axis.ticks.minorLengthPx}
+              minimum={STYLE_LIMITS.minTickLengthPx}
+              maximum={STYLE_LIMITS.maxTickLengthPx}
+              onCommit={(value) => {
+                if (value !== null) onAction({ type: 'set-axis-tick-style', axisId: axis.id, field: 'minorLengthPx', value })
+              }}
+            />
+          )}
+        </div>
+        <NumberDraftInput
+          label="目盛線の太さ (pt相当)"
+          value={axis.ticks.lineWidthPx}
+          minimum={STYLE_LIMITS.minTickLineWidthPx}
+          maximum={STYLE_LIMITS.maxTickLineWidthPx}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-axis-tick-style', axisId: axis.id, field: 'lineWidthPx', value })
+          }}
+        />
       </fieldset>
 
       <fieldset>
-        <legend>軸線とグリッド線</legend>
+        <legend>ラベル</legend>
+        <CheckboxControl
+          label="目盛ラベルを表示"
+          checked={axis.labels.visible}
+          onChange={(value) =>
+            onAction({ type: 'set-axis-label-style', axisId: axis.id, field: 'visible', value })
+          }
+        />
+        <label className="control-label">
+          <span>フォント</span>
+          <select
+            value={axis.labels.family}
+            onChange={(event) =>
+              onAction({ type: 'set-axis-label-style', axisId: axis.id, field: 'family', value: event.target.value })
+            }
+          >
+            {FONT_FAMILIES.map((family) => <option value={family} key={family}>{family}</option>)}
+          </select>
+        </label>
+        <NumberDraftInput
+          label="文字サイズ (pt相当)"
+          value={axis.labels.sizePx}
+          minimum={STYLE_LIMITS.minFontSizePx}
+          maximum={STYLE_LIMITS.maxFontSizePx}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-axis-label-style', axisId: axis.id, field: 'sizePx', value })
+          }}
+        />
+        <ColorControl
+          label="色"
+          value={axis.labels.color}
+          onChange={(value) =>
+            onAction({ type: 'set-axis-label-style', axisId: axis.id, field: 'color', value })
+          }
+        />
+        <CheckboxControl
+          label="太字"
+          checked={axis.labels.bold}
+          onChange={(value) =>
+            onAction({ type: 'set-axis-label-style', axisId: axis.id, field: 'bold', value })
+          }
+        />
+        <NumberDraftInput
+          label="ラベルの角度 (°)"
+          value={axis.labels.angleDeg}
+          minimum={STYLE_LIMITS.minLabelAngleDeg}
+          maximum={STYLE_LIMITS.maxLabelAngleDeg}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-axis-label-style', axisId: axis.id, field: 'angleDeg', value })
+          }}
+        />
+        {numericAxis && (
+          <>
+            <label className="control-label">
+              <span>数値表示形式</span>
+              <select
+                value={axis.numberFormat.kind}
+                onChange={(event) => {
+                  const kind = event.target.value as AxisModel['numberFormat']['kind']
+                  onAction({
+                    type: 'set-axis-number-format',
+                    axisId: axis.id,
+                    value:
+                      kind === 'auto' || kind === 'integer'
+                        ? { kind }
+                        : { kind, decimalPlaces },
+                  })
+                }}
+              >
+                <option value="auto">自動</option>
+                <option value="integer">整数</option>
+                <option value="decimal">小数</option>
+                <option value="scientific">指数表記</option>
+              </select>
+            </label>
+            {(axis.numberFormat.kind === 'decimal' || axis.numberFormat.kind === 'scientific') && (
+              <NumberDraftInput
+                label="小数点以下桁数"
+                value={axis.numberFormat.decimalPlaces}
+                minimum={STYLE_LIMITS.minDecimalPlaces}
+                maximum={STYLE_LIMITS.maxDecimalPlaces}
+                integer
+                onCommit={(value) => {
+                  if (value !== null) onAction({
+                    type: 'set-axis-number-format',
+                    axisId: axis.id,
+                    value: { kind: axis.numberFormat.kind, decimalPlaces: value },
+                  })
+                }}
+              />
+            )}
+          </>
+        )}
+      </fieldset>
+
+      <fieldset>
+        <legend>軸線</legend>
         <CheckboxControl
           label="軸線を表示"
           checked={axis.line.visible}
@@ -422,7 +619,7 @@ function AxisControls({
           }
         />
         <NumberDraftInput
-          label="軸線の太さ"
+          label="軸線の太さ (pt相当)"
           value={axis.line.widthPx}
           minimum={STYLE_LIMITS.minLineWidthPx}
           maximum={STYLE_LIMITS.maxLineWidthPx}
@@ -430,6 +627,10 @@ function AxisControls({
             if (value !== null) onAction({ type: 'set-axis-line', axisId: axis.id, field: 'widthPx', value })
           }}
         />
+      </fieldset>
+
+      <fieldset>
+        <legend>グリッド線</legend>
         <div className="two-column-controls">
           <CheckboxControl
             label="主グリッド"
@@ -446,16 +647,127 @@ function AxisControls({
             }
           />}
         </div>
+        <GridLineControls
+          label="主グリッド線"
+          axis={axis}
+          kind="major"
+          onAction={onAction}
+        />
+        {!categoryAxis && (
+          <GridLineControls
+            label="補助グリッド線"
+            axis={axis}
+            kind="minor"
+            onAction={onAction}
+          />
+        )}
       </fieldset>
 
-      <FontControls
-        legend="軸ラベル"
-        style={axis.labels}
-        onChange={(field, value) =>
-          onAction({ type: 'set-axis-label-style', axisId: axis.id, field, value })
+      <fieldset>
+        <legend>軸タイトル</legend>
+        <CheckboxControl
+          label="表示"
+          checked={axis.title.visible}
+          onChange={(visible) =>
+            onAction({ type: 'set-axis-title-visible', axisId: axis.id, visible })
+          }
+        />
+        <label className="control-label">
+          <span>文字列</span>
+          <input
+            type="text"
+            value={axis.title.text}
+            onChange={(event) =>
+              onAction({ type: 'set-axis-title', axisId: axis.id, title: event.target.value })
+            }
+          />
+        </label>
+        <label className="control-label">
+          <span>フォント</span>
+          <select
+            value={axis.title.style.family}
+            onChange={(event) =>
+              onAction({ type: 'set-axis-title-style', axisId: axis.id, field: 'family', value: event.target.value })
+            }
+          >
+            {FONT_FAMILIES.map((family) => <option value={family} key={family}>{family}</option>)}
+          </select>
+        </label>
+        <NumberDraftInput
+          label="文字サイズ (pt相当)"
+          value={axis.title.style.sizePx}
+          minimum={STYLE_LIMITS.minFontSizePx}
+          maximum={STYLE_LIMITS.maxFontSizePx}
+          onCommit={(value) => {
+            if (value !== null) onAction({ type: 'set-axis-title-style', axisId: axis.id, field: 'sizePx', value })
+          }}
+        />
+        <ColorControl
+          label="色"
+          value={axis.title.style.color}
+          onChange={(value) =>
+            onAction({ type: 'set-axis-title-style', axisId: axis.id, field: 'color', value })
+          }
+        />
+        <CheckboxControl
+          label="太字"
+          checked={axis.title.style.bold}
+          onChange={(value) =>
+            onAction({ type: 'set-axis-title-style', axisId: axis.id, field: 'bold', value })
+          }
+        />
+      </fieldset>
+    </>
+  )
+}
+
+function GridLineControls({
+  label,
+  axis,
+  kind,
+  onAction,
+}: {
+  label: string
+  axis: AxisModel
+  kind: 'major' | 'minor'
+  onAction: ActionHandler
+}) {
+  const style = kind === 'major'
+    ? axis.gridLines.majorStyle
+    : axis.gridLines.minorStyle
+  return (
+    <section className="axis-option-section" aria-label={`${label}の書式`}>
+      <h3>{label}の書式</h3>
+      <ColorControl
+        label="色"
+        value={style.color}
+        onChange={(value) =>
+          onAction({ type: 'set-axis-grid-style', axisId: axis.id, kind, field: 'color', value })
         }
       />
-    </>
+      <NumberDraftInput
+        label="太さ (pt相当)"
+        value={style.widthPx}
+        minimum={0}
+        maximum={STYLE_LIMITS.maxLineWidthPx}
+        onCommit={(value) => {
+          if (value !== null) onAction({ type: 'set-axis-grid-style', axisId: axis.id, kind, field: 'widthPx', value })
+        }}
+      />
+      <label className="control-label">
+        <span>線種</span>
+        <select
+          value={style.style}
+          onChange={(event) =>
+            onAction({ type: 'set-axis-grid-style', axisId: axis.id, kind, field: 'style', value: event.target.value })
+          }
+        >
+          <option value="solid">実線</option>
+          <option value="dash">破線</option>
+          <option value="dot">点線</option>
+        </select>
+      </label>
+    </section>
   )
 }
 
@@ -752,7 +1064,7 @@ function FontControls({
         </select>
       </label>
       <NumberDraftInput
-        label="文字サイズ"
+        label="文字サイズ (pt相当)"
         value={style.sizePx}
         minimum={STYLE_LIMITS.minFontSizePx}
         maximum={STYLE_LIMITS.maxFontSizePx}
@@ -853,11 +1165,17 @@ function NumberDraftInput({
       (!positive || parsed > 0) &&
       (!integer || Number.isInteger(parsed))
     if (!valid) {
-      setInvalidMessage(
-        positive
-          ? '0より大きい有限数を入力してください。'
-          : '有限数を入力してください。',
-      )
+      const message =
+        draft.trim() === '' || !Number.isFinite(parsed)
+          ? '有限数を入力してください。'
+          : integer && !Number.isInteger(parsed)
+            ? '整数を入力してください。'
+            : positive && parsed <= 0
+              ? '0より大きい有限数を入力してください。'
+              : minimum !== -Number.MAX_VALUE || maximum !== Number.MAX_VALUE
+                ? `${minimum}〜${maximum}の範囲で入力してください。`
+                : '入力値を確認してください。'
+      setInvalidMessage(message)
       setDraft(value === null ? '' : String(value))
       setEditing(false)
       return
