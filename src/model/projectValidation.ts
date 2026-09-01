@@ -1,5 +1,7 @@
 import { CHART_SIZE_LIMITS, DATA_LIMITS } from './limits'
+import { STYLE_LIMITS } from './limits'
 import { resolveDataRange } from './dataBinding'
+import { validateLogAxes } from './axisValidation'
 import type {
   AxisModel,
   DataRangeRef,
@@ -58,7 +60,34 @@ function validateAxis(axis: AxisModel, path: string): ValidationIssue[] {
   ) {
     issues.push(issue('axis.majorUnit', `${path}.ticks.majorInterval`, '主目盛は0より大きい値にしてください。'))
   }
+  if (
+    axis.ticks.minorInterval.mode === 'fixed' &&
+    (!Number.isFinite(axis.ticks.minorInterval.step) ||
+      axis.ticks.minorInterval.step <= 0)
+  ) {
+    issues.push(issue('axis.minorUnit', `${path}.ticks.minorInterval`, '補助目盛は0より大きい値にしてください。'))
+  }
+  if (!isHexColor(axis.line.color)) {
+    issues.push(issue('style.color', `${path}.line.color`, '軸線の色は#RRGGBB形式にしてください。'))
+  }
+  if (!isHexColor(axis.labels.color)) {
+    issues.push(issue('style.color', `${path}.labels.color`, '軸ラベルの色は#RRGGBB形式にしてください。'))
+  }
+  if (!inRange(axis.line.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx)) {
+    issues.push(issue('style.width', `${path}.line.widthPx`, '軸線の太さが許容範囲外です。'))
+  }
+  if (!inRange(axis.labels.sizePx, STYLE_LIMITS.minFontSizePx, STYLE_LIMITS.maxFontSizePx)) {
+    issues.push(issue('style.fontSize', `${path}.labels.sizePx`, '軸ラベルの文字サイズが許容範囲外です。'))
+  }
   return issues
+}
+
+export function isHexColor(value: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+function inRange(value: number, minimum: number, maximum: number): boolean {
+  return Number.isFinite(value) && value >= minimum && value <= maximum
 }
 
 export function validateProjectSemantics(
@@ -92,6 +121,7 @@ export function validateProjectSemantics(
   project.chart.axes.forEach((axis, index) => {
     issues.push(...validateAxis(axis, `project.chart.axes[${index}]`))
   })
+  issues.push(...validateLogAxes(project))
 
   const series = project.chart.series[0]
   issues.push(...validateBinding(project, series.bindings.x, 'project.chart.series[0].bindings.x'))
@@ -125,6 +155,39 @@ export function validateProjectSemantics(
           issues.push(issue('errorBar.length', 'project.chart.series[0].errorBars.y', 'Y Error列の範囲長がX/Y列と一致しません。'))
         }
       }
+    }
+  }
+
+  const styleChecks: Array<[boolean, string, string]> = [
+    [isHexColor(project.chart.style.backgroundColor), 'project.chart.style.backgroundColor', 'グラフ背景色'],
+    [isHexColor(project.chart.style.plotBackgroundColor), 'project.chart.style.plotBackgroundColor', 'プロット背景色'],
+    [isHexColor(project.chart.title.style.color), 'project.chart.title.style.color', 'タイトル色'],
+    [isHexColor(series.style.color), 'project.chart.series[0].style.color', '系列基準色'],
+    [isHexColor(series.style.marker.fillColor), 'project.chart.series[0].style.marker.fillColor', 'マーカー塗り色'],
+    [isHexColor(series.style.marker.borderColor), 'project.chart.series[0].style.marker.borderColor', 'マーカー枠線色'],
+    [isHexColor(series.style.line.color), 'project.chart.series[0].style.line.color', '系列線色'],
+    [isHexColor(series.style.bar.fillColor), 'project.chart.series[0].style.bar.fillColor', '棒塗り色'],
+    [isHexColor(series.style.bar.borderColor), 'project.chart.series[0].style.bar.borderColor', '棒枠線色'],
+    [isHexColor(series.errorBars.x.style.color), 'project.chart.series[0].errorBars.x.style.color', 'X誤差範囲色'],
+    [isHexColor(series.errorBars.y.style.color), 'project.chart.series[0].errorBars.y.style.color', 'Y誤差範囲色'],
+  ]
+  for (const [valid, path, label] of styleChecks) {
+    if (!valid) issues.push(issue('style.color', path, `${label}は#RRGGBB形式にしてください。`))
+  }
+  const numberStyleChecks: Array<[number, number, number, string]> = [
+    [project.chart.title.style.sizePx, STYLE_LIMITS.minFontSizePx, STYLE_LIMITS.maxFontSizePx, 'project.chart.title.style.sizePx'],
+    [series.style.marker.sizePx, STYLE_LIMITS.minMarkerSizePx, STYLE_LIMITS.maxMarkerSizePx, 'project.chart.series[0].style.marker.sizePx'],
+    [series.style.marker.borderWidthPx, STYLE_LIMITS.minBorderWidthPx, STYLE_LIMITS.maxBorderWidthPx, 'project.chart.series[0].style.marker.borderWidthPx'],
+    [series.style.line.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].style.line.widthPx'],
+    [series.style.bar.borderWidthPx, STYLE_LIMITS.minBorderWidthPx, STYLE_LIMITS.maxBorderWidthPx, 'project.chart.series[0].style.bar.borderWidthPx'],
+    [series.errorBars.x.style.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].errorBars.x.style.widthPx'],
+    [series.errorBars.x.style.capSizePx, STYLE_LIMITS.minCapSizePx, STYLE_LIMITS.maxCapSizePx, 'project.chart.series[0].errorBars.x.style.capSizePx'],
+    [series.errorBars.y.style.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].errorBars.y.style.widthPx'],
+    [series.errorBars.y.style.capSizePx, STYLE_LIMITS.minCapSizePx, STYLE_LIMITS.maxCapSizePx, 'project.chart.series[0].errorBars.y.style.capSizePx'],
+  ]
+  for (const [value, minimum, maximum, path] of numberStyleChecks) {
+    if (!inRange(value, minimum, maximum)) {
+      issues.push(issue('style.range', path, '書式の数値が許容範囲外です。'))
     }
   }
 

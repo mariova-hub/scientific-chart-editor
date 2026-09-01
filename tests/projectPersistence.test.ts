@@ -10,15 +10,17 @@ import { sampleProject } from './helpers'
 describe('project persistence', () => {
   it('round-trips the complete Phase 1 editing state', () => {
     let project = sampleProject()
+    const xAxisId = project.chart.axes.find((axis) => axis.dimension === 'x')!.id
+    const yAxisId = project.chart.axes.find((axis) => axis.dimension === 'y')!.id
     project = projectReducer(project, {
       type: 'set-axis-bound',
-      dimension: 'x',
+      axisId: xAxisId,
       bound: 'minimum',
       value: 2,
     })
     project = projectReducer(project, {
       type: 'set-axis-major-unit',
-      dimension: 'y',
+      axisId: yAxisId,
       value: 0.25,
     })
     project = projectReducer(project, {
@@ -91,6 +93,87 @@ describe('project persistence', () => {
     const savedAgain = JSON.parse(serializeProjectFile(parsed.project))
     expect(savedAgain.project.chart.futureRendererNeutralOption).toEqual({
       enabled: true,
+    })
+  })
+
+  it('round-trips every Phase 2 semantic style group', () => {
+    let project = sampleProject()
+    const axisId = project.chart.axes[0].id
+    const seriesId = project.chart.series[0].id
+    const actions = [
+      { type: 'set-axis-minor-unit', axisId, value: 0.2 },
+      { type: 'set-axis-tick-visible', axisId, kind: 'minor', visible: true },
+      { type: 'set-axis-line', axisId, field: 'color', value: '#123456' },
+      { type: 'set-axis-label-style', axisId, field: 'family', value: 'Georgia' },
+      { type: 'set-series-marker', seriesId, field: 'shape', value: 'square' },
+      { type: 'set-series-marker', seriesId, field: 'fillColor', value: '#334455' },
+      { type: 'set-series-line', seriesId, field: 'dash', value: 'dot' },
+      { type: 'set-error-bar-style', seriesId, field: 'capSizePx', value: 10 },
+      { type: 'set-chart-background', field: 'plotBackgroundColor', value: '#eeeeee' },
+      { type: 'set-chart-title-style', field: 'bold', value: true },
+      { type: 'set-legend-visible', value: true },
+      { type: 'set-legend-position', value: 'bottom' },
+    ] as const
+    for (const action of actions) project = projectReducer(project, action)
+
+    const result = parseProjectFile(serializeProjectFile(project))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.project).toEqual(project)
+  })
+
+  it('hydrates a Phase 1 0.1 file that is missing all Phase 2 fields', () => {
+    const file = JSON.parse(serializeProjectFile(sampleProject()))
+    delete file.project.chart.style
+    delete file.project.chart.title.style
+    for (const axis of file.project.chart.axes) {
+      delete axis.line
+      delete axis.labels
+      delete axis.ticks.majorVisible
+      delete axis.ticks.minorVisible
+    }
+    const series = file.project.chart.series[0]
+    delete series.style.line.color
+    delete series.style.marker.fillColor
+    delete series.style.marker.borderColor
+    delete series.style.marker.borderWidthPx
+    delete series.errorBars.x.style
+    delete series.errorBars.y.style
+
+    const result = parseProjectFile(JSON.stringify(file))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.project.chart.style).toEqual({
+      backgroundColor: '#ffffff',
+      plotBackgroundColor: '#ffffff',
+    })
+    expect(result.project.chart.axes[0]).toMatchObject({
+      ticks: { majorVisible: true, minorVisible: false },
+      line: { visible: true, color: '#4b5563', widthPx: 1 },
+      labels: { family: 'Arial', sizePx: 12, color: '#374151' },
+    })
+    expect(result.project.chart.series[0].style.marker).toMatchObject({
+      fillColor: '#2563eb',
+      borderColor: '#2563eb',
+      borderWidthPx: 1,
+    })
+    expect(result.project.chart.series[0].errorBars.y.style.visible).toBe(true)
+  })
+
+  it('rejects an explicit invalid Phase 2 enum instead of defaulting it', () => {
+    const file = JSON.parse(serializeProjectFile(sampleProject()))
+    file.project.chart.series[0].style.marker.shape = 'star'
+    expect(parseProjectFile(JSON.stringify(file))).toMatchObject({
+      ok: false,
+      error: { code: 'schema.project' },
+    })
+  })
+
+  it('rejects an explicit invalid color instead of silently correcting it', () => {
+    const file = JSON.parse(serializeProjectFile(sampleProject()))
+    file.project.chart.style.backgroundColor = 'red'
+    expect(parseProjectFile(JSON.stringify(file))).toMatchObject({
+      ok: false,
+      error: { code: 'style.color' },
     })
   })
 })

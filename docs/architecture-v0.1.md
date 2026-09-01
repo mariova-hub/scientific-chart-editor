@@ -458,3 +458,29 @@ Google Sheetsから表を貼る
 - Data Binding Modelは同一行のX/Y/Y Errorをzipしてから無効X/Y行を除外し、行対応のずれを防ぐ。Y Errorの妥当性は描画対象となるX/Y行だけで判定する。
 - Y Error列の指定時に`null`、非`number`、非有限値、負値が1件でもあれば、Data Binding Modelは派生状態`showYErrorBars = false`と該当行ID一覧を返す。Renderer Adapterは系列全体の`error_y`を出力しない。散布点、Dataset、Chart Model上のbindingと`enabled`は変更せず、数値の0は有効値として保持する。
 - runtime上限は256列・10,000行・プロジェクト5 MiB、グラフ幅360〜1,600px・高さ300〜1,200pxとする。
+
+## 16. Phase 2書式編集アーキテクチャ
+
+### 16.1 Selection Model
+
+`src/state/selection.ts`にrenderer非依存のdiscriminated unionを置き、`chartId`、`axisId`、`seriesId`で対象を識別する。対象はchart、axis、series、Y error bars、legend、chart titleである。SelectionはReactのSession Stateとして保持し、保存・Undo対象にはしない。プロジェクト読み込み成功時は読み込んだchart IDのchart selectionへ戻す。選択UIの文字列keyはUI境界だけで相互変換し、不明または古いIDは安全なchart selectionへ戻す。
+
+### 16.2 Style Modelと更新
+
+- Axis Modelはscale type、reversed、主・補助intervalと表示、tick direction、axis line、grid、label fontを保持する。
+- Series ModelはScientific Chart Editor固有のmarker shapeとline style enum、塗り／枠線、寸法を保持する。
+- Error Bar Modelはbindingと`enabled`に加え、意味的な`style.visible`、色、線幅、cap sizeを保持する。無効誤差値による派生表示可否は保存しない。
+- Chart Modelはpaper相当の背景とplot area背景、title font、legend positionをrenderer-neutralな値で保持する。
+- Format PaneはProject Stateを直接mutateせず、すべて`ProjectAction`をReducerへ渡す。数値draft、選択、ドラッグpreviewはSession Stateである。
+
+Plotlyのmarker symbol、dash、legend座標、log range表現は`renderer/plotly/plotlyAdapter.ts`でのみ変換する。`dash-dot`から`dashdot`、凡例の上下左右から座標への対応等をChart Modelへ逆流させない。Plotlyが真のcross tickを直接提供しないため、Phase 2 Adapterでは`cross`を内向きの長いtickとして近似するが、Model enumの意味は維持する。
+
+### 16.3 対数軸validation
+
+`validateLogAxes`は明示min/max、描画対象X/Y、および表示対象となるY error下端を検証する。0以下がある場合は件数付きissueを返す。UIは対数軸化、データ貼り替え、binding変更、誤差範囲再表示等の候補Projectに対して検証し、不適合操作をReducerへ渡さない。Persistenceのsemantic validationも同じ関数を使用し、不正な外部ファイルをatomic load前に拒否する。
+
+### 16.4 互換性とリサイズ
+
+Persistenceは`schemaVersion: "0.1"`の構造検証前に、Phase 2で追加したfieldが欠落している場合だけdefault hydrationを行う。明示された不正値はdefaultで上書きせず拒否する。これによりPhase 1 writerの`0.1`ファイルを読み込みつつ、現在writerは完全なStyle Modelを保存する。
+
+リサイズ計算は`calculateResizedChartSize`という純粋関数で整数化と上限・下限clampを行う。ChartCanvasはpointer capture中のpreviewをUI Stateに保持し、pointer up時だけ`set-chart-size-complete` actionで幅・高さを同時更新する。

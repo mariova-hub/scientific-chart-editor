@@ -1,5 +1,14 @@
 import { DATA_LIMITS } from '../model/limits'
 import { validateProjectSemantics } from '../model/projectValidation'
+import {
+  defaultAxisLabels,
+  defaultAxisLine,
+  defaultChartStyle,
+  defaultErrorBarStyle,
+  defaultLineStyle,
+  defaultMarkerStyle,
+  defaultTitleStyle,
+} from '../model/defaults'
 import type {
   AxisModel,
   CellValue,
@@ -34,6 +43,100 @@ function isCellValue(value: unknown): value is CellValue {
 
 function hasValidExtensions(value: Record<string, unknown>): boolean {
   return value.extensions === undefined || isRecord(value.extensions)
+}
+
+function valueOrDefault<T>(value: unknown, fallback: T): unknown {
+  return value === undefined ? fallback : value
+}
+
+function hydrateProjectV01(value: unknown): unknown {
+  if (!isRecord(value) || !isRecord(value.chart)) return value
+  const chart = value.chart
+  const axes = Array.isArray(chart.axes)
+    ? chart.axes.map((axis) => {
+        if (!isRecord(axis)) return axis
+        const ticks = isRecord(axis.ticks) ? axis.ticks : axis.ticks
+        return {
+          ...axis,
+          ticks: isRecord(ticks)
+            ? {
+                ...ticks,
+                majorVisible: valueOrDefault(ticks.majorVisible, true),
+                minorVisible: valueOrDefault(ticks.minorVisible, false),
+              }
+            : ticks,
+          line: valueOrDefault(axis.line, defaultAxisLine()),
+          labels: valueOrDefault(axis.labels, defaultAxisLabels()),
+        }
+      })
+    : chart.axes
+  const series = Array.isArray(chart.series)
+    ? chart.series.map((item) => {
+        if (!isRecord(item) || !isRecord(item.style)) return item
+        const style = item.style
+        const baseColor =
+          typeof style.color === 'string' ? style.color : '#2563eb'
+        const line = isRecord(style.line)
+          ? {
+              ...defaultLineStyle(),
+              ...style.line,
+              color: valueOrDefault(style.line.color, baseColor),
+            }
+          : style.line
+        const marker = isRecord(style.marker)
+          ? {
+              ...defaultMarkerStyle(),
+              ...style.marker,
+              fillColor: valueOrDefault(style.marker.fillColor, baseColor),
+              borderColor: valueOrDefault(
+                style.marker.borderColor,
+                baseColor,
+              ),
+              borderWidthPx: valueOrDefault(
+                style.marker.borderWidthPx,
+                1,
+              ),
+            }
+          : style.marker
+        const errorBars = isRecord(item.errorBars)
+          ? Object.fromEntries(
+              Object.entries(item.errorBars).map(([key, errorBar]) => [
+                key,
+                isRecord(errorBar)
+                  ? {
+                      ...errorBar,
+                      style: valueOrDefault(
+                        errorBar.style,
+                        { ...defaultErrorBarStyle(), color: baseColor },
+                      ),
+                    }
+                  : errorBar,
+              ]),
+            )
+          : item.errorBars
+        return {
+          ...item,
+          style: { ...style, line, marker },
+          errorBars,
+        }
+      })
+    : chart.series
+  const title = isRecord(chart.title)
+    ? {
+        ...chart.title,
+        style: valueOrDefault(chart.title.style, defaultTitleStyle()),
+      }
+    : chart.title
+  return {
+    ...value,
+    chart: {
+      ...chart,
+      axes,
+      series,
+      title,
+      style: valueOrDefault(chart.style, defaultChartStyle()),
+    },
+  }
 }
 
 function isDataRange(value: unknown): value is DataRangeRef {
@@ -90,18 +193,29 @@ function isAxis(value: unknown): value is AxisModel {
     typeof value.title.visible !== 'boolean' ||
     typeof value.title.text !== 'string' ||
     !isRecord(value.scale) ||
-    value.scale.type !== 'linear' ||
+    (value.scale.type !== 'linear' && value.scale.type !== 'log') ||
     !isFiniteNumberOrNull(value.scale.minimum) ||
     !isFiniteNumberOrNull(value.scale.maximum) ||
     typeof value.scale.reversed !== 'boolean' ||
     !isRecord(value.ticks) ||
     !isRecord(value.ticks.majorInterval) ||
     !isRecord(value.ticks.minorInterval) ||
-    value.ticks.minorInterval.mode !== 'none' ||
-    value.ticks.direction !== 'outside' ||
+    typeof value.ticks.majorVisible !== 'boolean' ||
+    typeof value.ticks.minorVisible !== 'boolean' ||
+    !['inside', 'outside', 'cross', 'none'].includes(
+      String(value.ticks.direction),
+    ) ||
     !isRecord(value.gridLines) ||
     typeof value.gridLines.majorVisible !== 'boolean' ||
     typeof value.gridLines.minorVisible !== 'boolean' ||
+    !isRecord(value.line) ||
+    typeof value.line.visible !== 'boolean' ||
+    typeof value.line.color !== 'string' ||
+    typeof value.line.widthPx !== 'number' ||
+    !isRecord(value.labels) ||
+    typeof value.labels.family !== 'string' ||
+    typeof value.labels.sizePx !== 'number' ||
+    typeof value.labels.color !== 'string' ||
     !isRecord(value.numberFormat) ||
     value.numberFormat.kind !== 'auto' ||
     !hasValidExtensions(value)
@@ -110,22 +224,40 @@ function isAxis(value: unknown): value is AxisModel {
   }
 
   const majorInterval = value.ticks.majorInterval
-  return (
+  const minorInterval = value.ticks.minorInterval
+  const majorValid =
     majorInterval.mode === 'auto' ||
     (majorInterval.mode === 'fixed' &&
       typeof majorInterval.step === 'number' &&
       Number.isFinite(majorInterval.step))
+  const minorValid =
+    minorInterval.mode === 'none' ||
+    minorInterval.mode === 'auto' ||
+    (minorInterval.mode === 'fixed' &&
+      typeof minorInterval.step === 'number' &&
+      Number.isFinite(minorInterval.step))
+  return (
+    majorValid &&
+    minorValid &&
+    Number.isFinite(value.line.widthPx) &&
+    Number.isFinite(value.labels.sizePx)
   )
 }
 
 function isErrorBar(value: unknown): value is ErrorBarModel {
-  if (!isRecord(value) || typeof value.enabled !== 'boolean') return false
+  if (
+    !isRecord(value) ||
+    typeof value.enabled !== 'boolean' ||
+    !isRecord(value.style) ||
+    typeof value.style.visible !== 'boolean' ||
+    typeof value.style.color !== 'string' ||
+    typeof value.style.widthPx !== 'number' ||
+    !Number.isFinite(value.style.widthPx) ||
+    typeof value.style.capSizePx !== 'number' ||
+    !Number.isFinite(value.style.capSizePx)
+  ) return false
   if (value.value === null) return true
-  return (
-    isRecord(value.value) &&
-    value.value.kind === 'symmetric' &&
-    isDataRange(value.value.source)
-  )
+  return isRecord(value.value) && value.value.kind === 'symmetric' && isDataRange(value.value.source)
 }
 
 function isSeries(value: unknown): value is SeriesModel {
@@ -144,12 +276,16 @@ function isSeries(value: unknown): value is SeriesModel {
     typeof value.style.color !== 'string' ||
     !isRecord(value.style.line) ||
     typeof value.style.line.visible !== 'boolean' ||
+    typeof value.style.line.color !== 'string' ||
     typeof value.style.line.widthPx !== 'number' ||
-    value.style.line.dash !== 'solid' ||
+    !['solid', 'dash', 'dot', 'dash-dot'].includes(String(value.style.line.dash)) ||
     !isRecord(value.style.marker) ||
     typeof value.style.marker.visible !== 'boolean' ||
-    value.style.marker.shape !== 'circle' ||
+    !['circle', 'square', 'diamond', 'triangle-up', 'cross', 'x'].includes(String(value.style.marker.shape)) ||
     typeof value.style.marker.sizePx !== 'number' ||
+    typeof value.style.marker.fillColor !== 'string' ||
+    typeof value.style.marker.borderColor !== 'string' ||
+    typeof value.style.marker.borderWidthPx !== 'number' ||
     !isRecord(value.style.bar) ||
     typeof value.style.bar.fillColor !== 'string' ||
     typeof value.style.bar.borderColor !== 'string' ||
@@ -167,6 +303,7 @@ function isSeries(value: unknown): value is SeriesModel {
   return (
     Number.isFinite(value.style.line.widthPx) &&
     Number.isFinite(value.style.marker.sizePx) &&
+    Number.isFinite(value.style.marker.borderWidthPx) &&
     Number.isFinite(value.style.bar.borderWidthPx)
   )
 }
@@ -187,14 +324,22 @@ function isProjectState(value: unknown): value is ProjectState {
     !isRecord(value.chart.title) ||
     typeof value.chart.title.visible !== 'boolean' ||
     typeof value.chart.title.text !== 'string' ||
+    !isRecord(value.chart.title.style) ||
+    typeof value.chart.title.style.family !== 'string' ||
+    typeof value.chart.title.style.sizePx !== 'number' ||
+    typeof value.chart.title.style.color !== 'string' ||
+    typeof value.chart.title.style.bold !== 'boolean' ||
     !isRecord(value.chart.legend) ||
     typeof value.chart.legend.visible !== 'boolean' ||
-    value.chart.legend.position !== 'right' ||
+    !['right', 'left', 'top', 'bottom'].includes(String(value.chart.legend.position)) ||
     !isRecord(value.chart.size) ||
     typeof value.chart.size.widthPx !== 'number' ||
     !Number.isFinite(value.chart.size.widthPx) ||
     typeof value.chart.size.heightPx !== 'number' ||
     !Number.isFinite(value.chart.size.heightPx) ||
+    !isRecord(value.chart.style) ||
+    typeof value.chart.style.backgroundColor !== 'string' ||
+    typeof value.chart.style.plotBackgroundColor !== 'string' ||
     !Array.isArray(value.chart.axes) ||
     !value.chart.axes.every(isAxis) ||
     !Array.isArray(value.chart.series) ||
@@ -206,7 +351,7 @@ function isProjectState(value: unknown): value is ProjectState {
   ) {
     return false
   }
-  return true
+  return Number.isFinite(value.chart.title.style.sizePx)
 }
 
 function parseFailure(
@@ -227,13 +372,14 @@ function validateFileShape(value: unknown): ProjectParseResult {
   if (value.schemaVersion !== '0.1') {
     return parseFailure('schema.version', '$.schemaVersion', '対応しているschemaVersionは0.1です。')
   }
-  if (!isProjectState(value.project)) {
+  const hydratedProject = hydrateProjectV01(value.project)
+  if (!isProjectState(hydratedProject)) {
     return parseFailure('schema.project', '$.project', 'projectの必須構造または値の型が不正です。')
   }
 
-  const semanticIssues = validateProjectSemantics(value.project)
+  const semanticIssues = validateProjectSemantics(hydratedProject)
   if (semanticIssues.length > 0) return { ok: false, error: semanticIssues[0] }
-  return { ok: true, project: value.project }
+  return { ok: true, project: hydratedProject }
 }
 
 export function parseProjectFile(text: string): ProjectParseResult {

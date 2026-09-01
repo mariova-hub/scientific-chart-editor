@@ -7,6 +7,10 @@ import {
 } from 'react'
 import type { ProjectState } from '../../model/types'
 import {
+  calculateResizedChartSize,
+  type ChartSize,
+} from '../../model/resize'
+import {
   exportPlotlySvg,
   purgePlotlyChart,
   renderPlotlyChart,
@@ -19,12 +23,63 @@ export interface ChartCanvasHandle {
 interface ChartCanvasProps {
   project: ProjectState
   hasData: boolean
+  selected: boolean
+  onSelectChart: () => void
+  onResizeComplete: (size: ChartSize) => void
 }
 
 export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
-  function ChartCanvas({ project, hasData }, ref) {
+  function ChartCanvas(
+    { project, hasData, selected, onSelectChart, onResizeComplete },
+    ref,
+  ) {
     const chartElementRef = useRef<HTMLDivElement>(null)
     const [renderError, setRenderError] = useState<string | null>(null)
+    const [previewSize, setPreviewSize] = useState<ChartSize>(project.chart.size)
+    const dragRef = useRef<{
+      pointerId: number
+      startX: number
+      startY: number
+      startSize: ChartSize
+    } | null>(null)
+
+    useEffect(() => {
+      if (!dragRef.current) setPreviewSize(project.chart.size)
+    }, [project.chart.size])
+
+    useEffect(() => {
+      const handlePointerMove = (event: PointerEvent) => {
+        const drag = dragRef.current
+        if (!drag || drag.pointerId !== event.pointerId) return
+        setPreviewSize(
+          calculateResizedChartSize(
+            drag.startSize,
+            event.clientX - drag.startX,
+            event.clientY - drag.startY,
+          ),
+        )
+      }
+      const handlePointerUp = (event: PointerEvent) => {
+        const drag = dragRef.current
+        if (!drag || drag.pointerId !== event.pointerId) return
+        const size = calculateResizedChartSize(
+          drag.startSize,
+          event.clientX - drag.startX,
+          event.clientY - drag.startY,
+        )
+        dragRef.current = null
+        setPreviewSize(size)
+        onResizeComplete(size)
+      }
+      window.addEventListener('pointermove', handlePointerMove)
+      window.addEventListener('pointerup', handlePointerUp)
+      window.addEventListener('pointercancel', handlePointerUp)
+      return () => {
+        window.removeEventListener('pointermove', handlePointerMove)
+        window.removeEventListener('pointerup', handlePointerUp)
+        window.removeEventListener('pointercancel', handlePointerUp)
+      }
+    }, [onResizeComplete])
 
     useImperativeHandle(ref, () => ({
       exportSvg: async () => {
@@ -63,8 +118,38 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
             {project.chart.size.widthPx} × {project.chart.size.heightPx}px
           </span>
         </div>
-        <div className="chart-viewport">
-          <div ref={chartElementRef} className="plotly-host" />
+        <div className="chart-viewport" onPointerDown={onSelectChart}>
+          <div
+            className={`chart-resize-frame${selected ? ' is-selected' : ''}`}
+            style={{
+              width: `${previewSize.widthPx}px`,
+              height: `${previewSize.heightPx}px`,
+            }}
+          >
+            <div ref={chartElementRef} className="plotly-host" />
+            <button
+              type="button"
+              className="resize-handle"
+              aria-label="グラフサイズをドラッグして変更"
+              title="ドラッグしてサイズ変更"
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                event.preventDefault()
+                dragRef.current = {
+                  pointerId: event.pointerId,
+                  startX: event.clientX,
+                  startY: event.clientY,
+                  startSize: project.chart.size,
+                }
+                setPreviewSize(project.chart.size)
+              }}
+            />
+            {dragRef.current && (
+              <span className="resize-preview-label" aria-live="polite">
+                {previewSize.widthPx} × {previewSize.heightPx}px
+              </span>
+            )}
+          </div>
           {!hasData && (
             <div className="chart-empty">
               <strong>表を貼り付けてください</strong>

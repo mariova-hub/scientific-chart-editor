@@ -9,6 +9,7 @@ import { FormatPane } from './components/FormatPane/FormatPane'
 import { Toolbar } from './components/Toolbar/Toolbar'
 import { parseTsv, TsvParseError } from './data/tsv/parseTsv'
 import { resolveScatterSeries } from './model/dataBinding'
+import { validateLogAxes } from './model/axisValidation'
 import { createEmptyProject } from './model/createProject'
 import { DATA_LIMITS } from './model/limits'
 import { validateProjectSemantics } from './model/projectValidation'
@@ -18,7 +19,8 @@ import {
   ProjectSerializationError,
   serializeProjectFile,
 } from './persistence/projectFile'
-import { projectReducer } from './state/projectReducer'
+import { projectReducer, type ProjectAction } from './state/projectReducer'
+import { defaultSelection } from './state/selection'
 
 type MessageKind = 'success' | 'error' | 'info'
 
@@ -30,6 +32,7 @@ function App() {
   )
   const [message, setMessage] = useState<string | null>(null)
   const [messageKind, setMessageKind] = useState<MessageKind>('info')
+  const [selection, setSelection] = useState(() => defaultSelection(project))
   const chartRef = useRef<ChartCanvasHandle>(null)
   const issues = useMemo(() => validateProjectSemantics(project), [project])
   const resolved = useMemo(
@@ -43,10 +46,27 @@ function App() {
     setMessageKind(kind)
   }
 
+  const handleProjectAction = (action: ProjectAction) => {
+    const candidate = projectReducer(project, action)
+    const logIssues = validateLogAxes(candidate)
+    if (logIssues.length > 0) {
+      showMessage(logIssues[0].message, 'error')
+      return
+    }
+    dispatch(action)
+  }
+
   const handlePasteTable = (source: string) => {
     try {
       const dataset = parseTsv(source)
-      dispatch({ type: 'replace-dataset', dataset })
+      const action = { type: 'replace-dataset', dataset } as const
+      const candidate = projectReducer(project, action)
+      const logIssues = validateLogAxes(candidate)
+      if (logIssues.length > 0) {
+        showMessage(logIssues[0].message, 'error')
+        return
+      }
+      dispatch(action)
       showMessage(
         `${dataset.columns.length}列・${dataset.rows.length}行を取り込みました。`,
         'success',
@@ -93,6 +113,7 @@ function App() {
         return
       }
       dispatch({ type: 'load-project', project: loaded.project })
+      setSelection(defaultSelection(loaded.project))
       showMessage('プロジェクトを検証して読み込みました。', 'success')
     } catch {
       showMessage('プロジェクトファイルを読み取れませんでした。', 'error')
@@ -120,7 +141,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 1</span>
+        <span className="phase-badge">v0.1 · Phase 2</span>
       </header>
 
       <Toolbar
@@ -138,30 +159,29 @@ function App() {
           project={project}
           onPasteTable={handlePasteTable}
           onSelectColumn={(role, columnId) =>
-            dispatch({ type: 'set-binding', role, columnId })
+            handleProjectAction({ type: 'set-binding', role, columnId })
           }
         />
         <ChartCanvas
           ref={chartRef}
           project={project}
           hasData={resolved.points.length > 0}
+          selected={selection.type === 'chart'}
+          onSelectChart={() => setSelection(defaultSelection(project))}
+          onResizeComplete={(size) =>
+            handleProjectAction({
+              type: 'set-chart-size-complete',
+              widthPx: size.widthPx,
+              heightPx: size.heightPx,
+            })
+          }
         />
         <FormatPane
           project={project}
+          selection={selection}
           issues={issues}
-          onAxisTitle={(dimension, title) =>
-            dispatch({ type: 'set-axis-title', dimension, title })
-          }
-          onAxisBound={(dimension, bound, value) =>
-            dispatch({ type: 'set-axis-bound', dimension, bound, value })
-          }
-          onMajorUnit={(dimension, value) =>
-            dispatch({ type: 'set-axis-major-unit', dimension, value })
-          }
-          onChartTitle={(title) => dispatch({ type: 'set-chart-title', title })}
-          onChartSize={(dimension, value) =>
-            dispatch({ type: 'set-chart-size', dimension, value })
-          }
+          onSelectionChange={setSelection}
+          onAction={handleProjectAction}
         />
       </main>
     </div>

@@ -5,6 +5,15 @@ import type {
   DatasetModel,
   ProjectState,
 } from './types'
+import {
+  defaultAxisLabels,
+  defaultAxisLine,
+  defaultChartStyle,
+  defaultErrorBarStyle,
+  defaultLineStyle,
+  defaultMarkerStyle,
+  defaultTitleStyle,
+} from './defaults'
 
 export type IdFactory = () => string
 
@@ -28,9 +37,13 @@ function createAxis(
     ticks: {
       majorInterval: { mode: 'auto' },
       minorInterval: { mode: 'none' },
+      majorVisible: true,
+      minorVisible: false,
       direction: 'outside',
     },
     gridLines: { majorVisible: true, minorVisible: false },
+    line: defaultAxisLine(),
+    labels: defaultAxisLabels(),
     numberFormat: { kind: 'auto' },
     extensions: {},
   }
@@ -61,9 +74,14 @@ export function createEmptyProject(
     chart: {
       id: idFactory(),
       type: 'scatter',
-      title: { visible: true, text: 'Scientific chart' },
+      title: {
+        visible: true,
+        text: 'Scientific chart',
+        style: defaultTitleStyle(),
+      },
       legend: { visible: false, position: 'right' },
       size: { widthPx: 760, heightPx: 480 },
+      style: defaultChartStyle(),
       axes: [xAxis, yAxis],
       series: [
         {
@@ -74,8 +92,8 @@ export function createEmptyProject(
           axisIds: { x: xAxis.id, y: yAxis.id },
           style: {
             color: '#2563eb',
-            line: { visible: false, widthPx: 2, dash: 'solid' },
-            marker: { visible: true, shape: 'circle', sizePx: 9 },
+            line: defaultLineStyle(),
+            marker: defaultMarkerStyle(),
             bar: {
               fillColor: '#2563eb',
               borderColor: '#1d4ed8',
@@ -83,8 +101,16 @@ export function createEmptyProject(
             },
           },
           errorBars: {
-            x: { enabled: false, value: null },
-            y: { enabled: false, value: null },
+            x: {
+              enabled: false,
+              value: null,
+              style: defaultErrorBarStyle(),
+            },
+            y: {
+              enabled: false,
+              value: null,
+              style: defaultErrorBarStyle(),
+            },
           },
           trendlines: [],
           extensions: {},
@@ -122,7 +148,7 @@ export function projectWithDataset(
           },
           errorBars: {
             ...series.errorBars,
-            y: { enabled: false, value: null },
+            y: { ...series.errorBars.y, enabled: false, value: null },
           },
         },
       ],

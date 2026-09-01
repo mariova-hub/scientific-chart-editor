@@ -10,3 +10,16 @@ export const CHART_SIZE_LIMITS = {
   minHeightPx: 300,
   maxHeightPx: 1200,
 } as const
+
+export const STYLE_LIMITS = {
+  minFontSizePx: 8,
+  maxFontSizePx: 72,
+  minMarkerSizePx: 2,
+  maxMarkerSizePx: 48,
+  minLineWidthPx: 0.5,
+  maxLineWidthPx: 12,
+  minBorderWidthPx: 0,
+  maxBorderWidthPx: 12,
+  minCapSizePx: 0,
+  maxCapSizePx: 30,
+} as const

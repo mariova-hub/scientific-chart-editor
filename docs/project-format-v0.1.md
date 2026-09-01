@@ -553,3 +553,34 @@ Phase 1 writerは本schemaのうち、単一dataset、単一`scatter` chart、X/
 - エラーバーの派生表示可否や代替値は保存しない。Projectにはユーザーが指定したY Error bindingと`enabled`、元のセル値を保存し、読み込み後に同じ検証規則から表示可否を再計算する。
 - 既知の0.1構造を検証した後は元objectをProject State候補として保持するため、未知fieldは読み込み・再保存の過程で維持される。既知fieldの型不正は拒否する。
 - Phase 1にはmigration対象となる旧公開schemaがないため、`schemaVersion`が`0.1`以外のファイルは安全に拒否する。
+
+## 16. Phase 2書式fieldと0.1互換性
+
+Phase 2 writerも`schemaVersion: "0.1"`を使用する。Phase 0-Bで定義済みだった書式概念を具体化した追加fieldであり、Phase 1 writerが出力した同versionファイルでは次のfieldが欠落し得る。readerは**欠落時だけ**次の安全なdefaultを補い、現在のProject Stateへ正規化する。
+
+| path（各entity内） | Phase 2形式／default |
+|---|---|
+| `chart.style` | `{ "backgroundColor": "#ffffff", "plotBackgroundColor": "#ffffff" }` |
+| `chart.title.style` | Arial、20px、`#172033`、非bold |
+| `axis.ticks.majorVisible/minorVisible` | `true` / `false` |
+| `axis.line` | visible、`#4b5563`、1px |
+| `axis.labels` | Arial、12px、`#374151` |
+| `series.style.line.color` | 旧`series.style.color` |
+| `series.style.marker.fillColor/borderColor/borderWidthPx` | 旧`series.style.color` / 同色 / 1px |
+| `errorBars.x.style` / `errorBars.y.style` | visible、旧系列色、1.5px、cap 4px |
+
+明示的に存在するfieldが不正enum、不正型、範囲外数値、不正色である場合はhydrationで補正せずinvalid fileとして拒否する。正規色は大文字・小文字を問わない`#RRGGBB`形式であり、writerはブラウザ色入力から得た同形式の文字列を保存する。
+
+### 16.1 Phase 2 enum
+
+- `axis.scale.type`: `linear` / `log`
+- `axis.ticks.direction`: `inside` / `outside` / `cross` / `none`
+- `series.style.marker.shape`: `circle` / `square` / `diamond` / `triangle-up` / `cross` / `x`
+- `series.style.line.dash`: `solid` / `dash` / `dot` / `dash-dot`
+- `chart.legend.position`: `right` / `left` / `top` / `bottom`
+
+Plotly固有の`dashdot`や凡例座標は保存しない。
+
+### 16.2 保存対象と非保存対象
+
+軸線・目盛・grid・label、marker・line、Y error style、chart background、plot background、title style、legend position、および確定したchart sizeは保存対象である。Selection、数値入力draft、警告、ドラッグ中preview、Y Errorの派生表示可否は保存しない。読み込み後は保存した意味設定と元データから派生状態を再計算する。

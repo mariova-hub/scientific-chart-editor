@@ -30,10 +30,38 @@ export interface DataRangeRef {
 
 export type AxisDimension = 'x' | 'y'
 export type AxisPosition = 'bottom' | 'left'
+export type AxisScaleType = 'linear' | 'log'
+export type TickDirection = 'inside' | 'outside' | 'cross' | 'none'
+export type MarkerShape =
+  | 'circle'
+  | 'square'
+  | 'diamond'
+  | 'triangle-up'
+  | 'cross'
+  | 'x'
+export type LineStyle = 'solid' | 'dash' | 'dot' | 'dash-dot'
+export type LegendPosition = 'right' | 'left' | 'top' | 'bottom'
 
 export type MajorInterval =
   | { mode: 'auto' }
   | { mode: 'fixed'; step: number }
+
+export type MinorInterval =
+  | { mode: 'none' }
+  | { mode: 'auto' }
+  | { mode: 'fixed'; step: number }
+
+export interface FontStyleModel {
+  family: string
+  sizePx: number
+  color: string
+}
+
+export interface LineAppearanceModel {
+  visible: boolean
+  color: string
+  widthPx: number
+}
 
 export interface AxisModel {
   id: string
@@ -41,20 +69,24 @@ export interface AxisModel {
   position: AxisPosition
   title: { visible: boolean; text: string }
   scale: {
-    type: 'linear'
+    type: AxisScaleType
     minimum: number | null
     maximum: number | null
     reversed: boolean
   }
   ticks: {
     majorInterval: MajorInterval
-    minorInterval: { mode: 'none' }
-    direction: 'outside'
+    minorInterval: MinorInterval
+    majorVisible: boolean
+    minorVisible: boolean
+    direction: TickDirection
   }
   gridLines: {
     majorVisible: boolean
     minorVisible: boolean
   }
+  line: LineAppearanceModel
+  labels: FontStyleModel
   numberFormat: { kind: 'auto' }
   extensions?: Record<string, unknown>
 }
@@ -67,6 +99,12 @@ export interface SymmetricErrorValue {
 export interface ErrorBarModel {
   enabled: boolean
   value: SymmetricErrorValue | null
+  style: {
+    visible: boolean
+    color: string
+    widthPx: number
+    capSizePx: number
+  }
 }
 
 export interface SeriesModel {
@@ -80,8 +118,20 @@ export interface SeriesModel {
   axisIds: { x: string; y: string }
   style: {
     color: string
-    line: { visible: boolean; widthPx: number; dash: 'solid' }
-    marker: { visible: boolean; shape: 'circle'; sizePx: number }
+    line: {
+      visible: boolean
+      color: string
+      widthPx: number
+      dash: LineStyle
+    }
+    marker: {
+      visible: boolean
+      shape: MarkerShape
+      sizePx: number
+      fillColor: string
+      borderColor: string
+      borderWidthPx: number
+    }
     bar: {
       fillColor: string
       borderColor: string
@@ -99,9 +149,17 @@ export interface SeriesModel {
 export interface ChartModel {
   id: string
   type: 'scatter'
-  title: { visible: boolean; text: string }
-  legend: { visible: boolean; position: 'right' }
+  title: {
+    visible: boolean
+    text: string
+    style: FontStyleModel & { bold: boolean }
+  }
+  legend: { visible: boolean; position: LegendPosition }
   size: { widthPx: number; heightPx: number }
+  style: {
+    backgroundColor: string
+    plotBackgroundColor: string
+  }
   axes: AxisModel[]
   series: SeriesModel[]
   annotations: []
