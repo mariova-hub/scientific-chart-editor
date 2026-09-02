@@ -129,6 +129,37 @@ h2 {
   background: #dfe5ed;
 }
 
+.current-file {
+  display: grid;
+  min-width: 150px;
+  max-width: 240px;
+  gap: 1px;
+  padding: 3px 7px;
+  color: #526178;
+  font-size: 11px;
+}
+
+.current-file-label {
+  color: #7a8799;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.current-file strong {
+  overflow: hidden;
+  color: #24344d;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-file small {
+  color: #9a5b13;
+  line-height: 1.25;
+}
+
 .export-controls {
   display: flex;
   align-items: end;
@@ -168,10 +199,27 @@ h2 {
 }
 
 .autosave-status,
+.formal-save-status,
 .toolbar-message {
   padding: 5px 8px;
   font-size: 12px;
   text-align: right;
+}
+
+.formal-saved,
+.formal-opened {
+  color: #166534;
+}
+
+.formal-saving,
+.formal-opening,
+.formal-idle {
+  color: #526178;
+}
+
+.formal-error {
+  color: #b42318;
+  font-weight: 700;
 }
 
 .autosave-saved {
@@ -1020,6 +1068,7 @@ legend {
   }
 
   .autosave-status,
+  .formal-save-status,
   .toolbar-message {
     text-align: left;
   }

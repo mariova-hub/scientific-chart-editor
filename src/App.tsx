@@ -42,6 +42,21 @@ import {
   type AutosaveStatus,
 } from './persistence/autosave'
 import { IndexedDbAutosaveStorage } from './persistence/indexedDbAutosave'
+import { IndexedDbFileSessionStorage } from './persistence/indexedDbFileSession'
+import {
+  BrowserProjectFilePicker,
+  FormalFilePermissionError,
+  isFormalProjectDirty,
+  readProjectFileHandle,
+  restorePersistedFileSession,
+  saveFormalProject,
+  saveFormalProjectAs,
+  type FilePickerHost,
+  type FileSessionStorage,
+  type FormalSaveStatus,
+  type ProjectFileHandleLike,
+  type ProjectFileLike,
+} from './persistence/formalProjectFiles'
 import { projectReducer, type ProjectAction } from './state/projectReducer'
 import { prepareProjectAction } from './state/projectActionGuard'
 import { defaultSelection } from './state/selection'
@@ -69,11 +84,28 @@ function App() {
     state: 'restoring',
   })
   const [autosaveReady, setAutosaveReady] = useState(false)
+  const [currentFileHandle, setCurrentFileHandle] =
+    useState<ProjectFileHandleLike | null>(null)
+  const [currentFileName, setCurrentFileName] = useState('無題')
+  const [savedProjectSnapshot, setSavedProjectSnapshot] = useState<
+    string | null
+  >(null)
+  const [formalSaveStatus, setFormalSaveStatus] = useState<FormalSaveStatus>({
+    state: 'idle',
+  })
+  const filePicker = useMemo(
+    () =>
+      new BrowserProjectFilePicker(
+        window as unknown as FilePickerHost,
+      ),
+    [],
+  )
   const chartRef = useRef<ChartCanvasHandle>(null)
   const projectRef = useRef(project)
   const autosaveManagerRef = useRef<ProjectAutosaveManager | null>(null)
   const lastSavedSerializedRef = useRef<string | null>(null)
   const pendingImmediateSerializedRef = useRef<string | null>(null)
+  const fileSessionStorageRef = useRef<FileSessionStorage | null>(null)
   const issues = useMemo(() => validateProjectSemantics(project), [project])
   const resolvedCount = useMemo(
     () =>
@@ -84,6 +116,10 @@ function App() {
   )
   const warnings = useMemo(() => getProjectWarnings(project), [project])
   const canPersist = issues.length === 0 && resolvedCount > 0
+  const isDirty = useMemo(
+    () => isFormalProjectDirty(project, savedProjectSnapshot),
+    [project, savedProjectSnapshot],
+  )
 
   const showMessage = (text: string, kind: MessageKind) => {
     setMessage(text)
@@ -129,9 +165,25 @@ function App() {
         },
       },
     )
+    const fileSessionStorage = new IndexedDbFileSessionStorage(
+      window.indexedDB,
+    )
     autosaveManagerRef.current = manager
+    fileSessionStorageRef.current = fileSessionStorage
 
-    void manager.restore(projectRef.current).then((result) => {
+    void manager.restore(projectRef.current).then(async (result) => {
+      if (!active) return
+      const persistedFileSession =
+        result.kind === 'restored' && filePicker.capabilities.save
+          ? await restorePersistedFileSession(fileSessionStorage)
+          : { kind: 'none' as const }
+      if (result.kind !== 'restored') {
+        try {
+          await fileSessionStorage.remove()
+        } catch {
+          // Stale file metadata must not block startup.
+        }
+      }
       if (!active) return
       if (result.kind === 'restored') {
         lastSavedSerializedRef.current = result.record.serializedProject
@@ -139,6 +191,13 @@ function App() {
         setSelection(defaultSelection(result.project))
         setMessage('前回の自動保存を復元しました。')
         setMessageKind('success')
+        if (persistedFileSession.kind === 'restored') {
+          setCurrentFileHandle(persistedFileSession.session.handle)
+          setCurrentFileName(persistedFileSession.session.fileName)
+          setSavedProjectSnapshot(
+            persistedFileSession.session.savedProjectSnapshot,
+          )
+        }
       } else {
         lastSavedSerializedRef.current = null
         if (result.kind === 'invalid' || result.kind === 'storage-error') {
@@ -155,8 +214,11 @@ function App() {
       if (autosaveManagerRef.current === manager) {
         autosaveManagerRef.current = null
       }
+      if (fileSessionStorageRef.current === fileSessionStorage) {
+        fileSessionStorageRef.current = null
+      }
     }
-  }, [])
+  }, [filePicker])
 
   useEffect(() => {
     if (!autosaveReady) return
@@ -276,23 +338,91 @@ function App() {
     return handleProjectAction({ type: 'clear-cell', dataset: result.dataset })
   }
 
-  const handleSave = () => {
+  const persistCurrentFileSession = async (
+    handle: ProjectFileHandleLike | null,
+    fileName: string,
+    snapshot: string,
+  ) => {
+    const storage = fileSessionStorageRef.current
+    if (!storage) return true
     try {
-      const json = serializeProjectFile(project)
-      downloadTextFile(
-        json,
-        'sample.scientific-chart.json',
-        'application/json',
-      )
-      showMessage('プロジェクトファイルを保存しました。', 'success')
-    } catch (error) {
-      showMessage(
-        error instanceof ProjectSerializationError
-          ? error.message
-          : 'プロジェクトを保存できませんでした。',
-        'error',
-      )
+      if (handle) {
+        await storage.write({
+          handle,
+          fileName,
+          savedProjectSnapshot: snapshot,
+        })
+      } else {
+        await storage.remove()
+      }
+      return true
+    } catch {
+      return false
     }
+  }
+
+  const runFormalSave = async (saveAs: boolean) => {
+    setFormalSaveStatus({ state: 'saving' })
+    try {
+      const serialized = serializeProjectFile(project)
+      const fallback = {
+        download: (contents: string, filename: string) =>
+          downloadTextFile(contents, filename, 'application/json'),
+      }
+      const result = saveAs
+        ? await saveFormalProjectAs({
+            contents: serialized,
+            picker: filePicker,
+            fallback,
+            suggestedName:
+              currentFileName === '無題' ? undefined : currentFileName,
+          })
+        : await saveFormalProject({
+            contents: serialized,
+            currentHandle: currentFileHandle,
+            picker: filePicker,
+            fallback,
+            suggestedName:
+              currentFileName === '無題' ? undefined : currentFileName,
+          })
+      if (result.kind === 'cancelled') {
+        setFormalSaveStatus({ state: 'idle' })
+        return
+      }
+
+      setCurrentFileHandle(result.handle)
+      setCurrentFileName(result.fileName)
+      setSavedProjectSnapshot(serialized)
+      const persisted = await persistCurrentFileSession(
+        result.handle,
+        result.fileName,
+        serialized,
+      )
+      saveAutosaveNow(projectRef.current)
+      setFormalSaveStatus({ state: 'saved' })
+      showMessage(
+        persisted
+          ? `${result.fileName}を保存しました。`
+          : `${result.fileName}を保存しました。F5後は保存先を再指定してください。`,
+        persisted ? 'success' : 'info',
+      )
+    } catch (error) {
+      const message =
+        error instanceof ProjectSerializationError ||
+        error instanceof FormalFilePermissionError
+          ? error.message
+          : 'プロジェクトファイルを保存できませんでした。'
+      setFormalSaveStatus({ state: 'error', message })
+      showMessage(message, 'error')
+    }
+  }
+
+  const handleSave = () => {
+    void runFormalSave(false)
+  }
+
+  const handleSaveAs = () => {
+    void runFormalSave(true)
   }
 
   const handleNew = () => {
@@ -306,28 +436,83 @@ function App() {
     const nextProject = createEmptyProject()
     dispatch({ type: 'load-project', project: nextProject })
     setSelection(defaultSelection(nextProject))
+    setCurrentFileHandle(null)
+    setCurrentFileName('無題')
+    setSavedProjectSnapshot(null)
+    setFormalSaveStatus({ state: 'idle' })
+    void fileSessionStorageRef.current?.remove()
     clearAutosaveNow()
     showMessage('新しいグラフを作成しました。', 'success')
   }
 
-  const handleLoad = async (file: File) => {
+  const applyOpenedFile = async (
+    file: ProjectFileLike,
+    handle: ProjectFileHandleLike | null,
+  ) => {
     if (file.size > DATA_LIMITS.maxProjectFileBytes) {
-      showMessage('プロジェクトファイルは5 MiB以下にしてください。', 'error')
+      const message = 'プロジェクトファイルは5 MiB以下にしてください。'
+      setFormalSaveStatus({ state: 'error', message })
+      showMessage(message, 'error')
       return
     }
     try {
       const text = await file.text()
       const loaded = loadProjectAtomically(project, text)
       if (loaded.error) {
-        showMessage(`${loaded.error.path}: ${loaded.error.message}`, 'error')
+        const message = `${loaded.error.path}: ${loaded.error.message}`
+        setFormalSaveStatus({ state: 'error', message })
+        showMessage(message, 'error')
         return
       }
+      const canonicalSnapshot = serializeProjectFile(loaded.project)
       dispatch({ type: 'load-project', project: loaded.project })
       setSelection(defaultSelection(loaded.project))
+      setCurrentFileHandle(handle)
+      setCurrentFileName(file.name)
+      setSavedProjectSnapshot(canonicalSnapshot)
       saveAutosaveNow(loaded.project)
-      showMessage('プロジェクトを検証して読み込みました。', 'success')
+      const persisted = await persistCurrentFileSession(
+        handle,
+        file.name,
+        canonicalSnapshot,
+      )
+      setFormalSaveStatus({ state: 'opened' })
+      showMessage(
+        persisted
+          ? `${file.name}を開きました。`
+          : `${file.name}を開きました。F5後は保存先を再指定してください。`,
+        persisted ? 'success' : 'info',
+      )
     } catch {
-      showMessage('プロジェクトファイルを読み取れませんでした。', 'error')
+      const message = 'プロジェクトファイルを読み取れませんでした。'
+      setFormalSaveStatus({ state: 'error', message })
+      showMessage(message, 'error')
+    }
+  }
+
+  const handleFallbackLoad = (file: File) => {
+    setFormalSaveStatus({ state: 'opening' })
+    void applyOpenedFile(file, null)
+  }
+
+  const handleOpen = async () => {
+    if (!filePicker.capabilities.open) return
+    setFormalSaveStatus({ state: 'opening' })
+    try {
+      const handle = await filePicker.pickOpen()
+      if (!handle) {
+        setFormalSaveStatus({ state: 'idle' })
+        return
+      }
+      const file = await readProjectFileHandle(handle)
+      await applyOpenedFile(file, handle)
+    } catch (error) {
+      const message =
+        error instanceof FormalFilePermissionError
+          ? error.message
+          : 'プロジェクトファイルを開けませんでした。'
+      setFormalSaveStatus({ state: 'error', message })
+      showMessage(message, 'error')
     }
   }
 
@@ -353,7 +538,7 @@ function App() {
               <h1>Project workspace</h1>
             </div>
           </div>
-          <span className="phase-badge">v0.1 · Phase 3D-4</span>
+          <span className="phase-badge">v0.1 · Phase 3D-5</span>
         </header>
         <section className="startup-restore" role="status" aria-live="polite">
           前回の作業を確認しています...
@@ -374,7 +559,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3D-4</span>
+        <span className="phase-badge">v0.1 · Phase 3D-5</span>
       </header>
 
       <Toolbar
@@ -383,9 +568,15 @@ function App() {
         message={message}
         messageKind={messageKind}
         autosaveStatus={autosaveStatus}
+        formalSaveStatus={formalSaveStatus}
+        currentFileName={currentFileName}
+        isDirty={isDirty}
+        fileSystemAccess={filePicker.capabilities}
         onNew={handleNew}
+        onOpen={() => void handleOpen()}
         onSave={handleSave}
-        onLoad={handleLoad}
+        onSaveAs={handleSaveAs}
+        onFallbackLoad={handleFallbackLoad}
         exportOptions={exportOptions}
         onExportOptionsChange={setExportOptions}
         onExport={handleExport}

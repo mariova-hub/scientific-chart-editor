@@ -3,7 +3,8 @@ import type { AutosaveRecord, AutosaveStorage } from './autosave'
 export const AUTOSAVE_DATABASE_NAME = 'scientific-chart-editor'
 export const AUTOSAVE_STORE_NAME = 'autosave'
 export const AUTOSAVE_CURRENT_PROJECT_KEY = 'current-project'
-const AUTOSAVE_DATABASE_VERSION = 1
+export const FILE_SESSION_STORE_NAME = 'file-sessions'
+export const AUTOSAVE_DATABASE_VERSION = 2
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -20,6 +21,31 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
   })
 }
 
+export function openScientificChartDatabase(
+  factory: IDBFactory,
+): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = factory.open(
+      AUTOSAVE_DATABASE_NAME,
+      AUTOSAVE_DATABASE_VERSION,
+    )
+    request.onupgradeneeded = () => {
+      const database = request.result
+      if (!database.objectStoreNames.contains(AUTOSAVE_STORE_NAME)) {
+        database.createObjectStore(AUTOSAVE_STORE_NAME)
+      }
+      if (!database.objectStoreNames.contains(FILE_SESSION_STORE_NAME)) {
+        database.createObjectStore(FILE_SESSION_STORE_NAME)
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () =>
+      reject(request.error ?? new Error('IndexedDBを開けませんでした。'))
+    request.onblocked = () =>
+      reject(new Error('IndexedDBの更新が別のタブによりブロックされています。'))
+  })
+}
+
 export class IndexedDbAutosaveStorage implements AutosaveStorage {
   private readonly factory: IDBFactory
 
@@ -27,26 +53,8 @@ export class IndexedDbAutosaveStorage implements AutosaveStorage {
     this.factory = factory
   }
 
-  private open(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = this.factory.open(
-        AUTOSAVE_DATABASE_NAME,
-        AUTOSAVE_DATABASE_VERSION,
-      )
-      request.onupgradeneeded = () => {
-        const database = request.result
-        if (!database.objectStoreNames.contains(AUTOSAVE_STORE_NAME)) {
-          database.createObjectStore(AUTOSAVE_STORE_NAME)
-        }
-      }
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error ?? new Error('IndexedDBを開けませんでした。'))
-      request.onblocked = () => reject(new Error('IndexedDBの更新が別のタブによりブロックされています。'))
-    })
-  }
-
   async read(): Promise<unknown | null> {
-    const database = await this.open()
+    const database = await openScientificChartDatabase(this.factory)
     try {
       const transaction = database.transaction(AUTOSAVE_STORE_NAME, 'readonly')
       const complete = transactionComplete(transaction)
@@ -61,7 +69,7 @@ export class IndexedDbAutosaveStorage implements AutosaveStorage {
   }
 
   async write(record: AutosaveRecord): Promise<void> {
-    const database = await this.open()
+    const database = await openScientificChartDatabase(this.factory)
     try {
       const transaction = database.transaction(AUTOSAVE_STORE_NAME, 'readwrite')
       const complete = transactionComplete(transaction)
@@ -75,7 +83,7 @@ export class IndexedDbAutosaveStorage implements AutosaveStorage {
   }
 
   async remove(): Promise<void> {
-    const database = await this.open()
+    const database = await openScientificChartDatabase(this.factory)
     try {
       const transaction = database.transaction(AUTOSAVE_STORE_NAME, 'readwrite')
       const complete = transactionComplete(transaction)

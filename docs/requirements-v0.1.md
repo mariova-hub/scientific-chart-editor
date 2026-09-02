@@ -435,3 +435,16 @@ Phase 3DはPNG出力と軸文字配置の仕上げに限定し、JPEG / PDF、�
 - 正式Project読込の成功状態は直ちに新しい自動保存とする。正式保存は自動保存を削除しない。新規作成は確認後にProjectを初期化し、空Projectは正式serializerの有効Project条件を満たさないため、古い自動保存recordを削除する。
 - 新規作成時は旧Projectのdebounce timerをcancelし、開始済みwriteがあればその後に削除を直列化する。write世代が古いcallbackは無視し、待機時間経過後やF5で旧Projectが復活してはならない。
 - 自動保存は端末ブラウザ内だけで完結し、サーバーへ送信しない。Phase 3D-4では複数タブ同期・履歴・クラウド同期を実装せず、複数タブでは最後に保存したタブが優先される。
+
+## 23. Phase 3D-5で確定した正式ファイル操作要件
+
+- Toolbarはデスクトップアプリと同じ「新規」「開く」「保存」「名前を付けて保存」を提示する。現在ファイル名と未保存変更を表す`*`を表示し、Project titleとfile nameは別概念とする。
+- ChromiumのFile System Access APIが利用可能な場合、初回「保存」は保存先を選択し、以後は同じFileSystemFileHandleへ上書きする。「名前を付けて保存」は常に新しいhandleを選択し、その後の「保存」先を切り替える。
+- 「開く」はhandleからFileを読み、既存のsize制限、parse、hydration、runtime / semantic validation、atomic loadを通過した後だけProjectとcurrent handleを一括更新する。成功Projectはautosaveにも即時反映する。
+- FileSystemFileHandle、file name、dirty、正式保存statusはSession StateでありProject JSONへ保存しない。handleと最後に正式保存したcanonical snapshotだけをautosaveとは別のIndexedDB storeへ保存し、F5後の再利用を試みる。
+- 起動時のhandle permissionが`granted`なら再利用し、`prompt`ならhandleを維持して次回「保存」のユーザー操作時に再要求する。`denied`、破損handle、破損snapshotは破棄する。
+- 正式保存成功後とOpen成功後はdirtyをfalseにする。Project変更後はtrue、新規作成後はfalseとする。autosave成功は正式保存ではないためdirtyを変更しない。
+- 書込みはpermission確認後に`createWritable → write → close`を完了して初めて成功とする。失敗時はProject・autosave・current handleを維持し、「保存済み」と表示しない。
+- API非対応環境では保存／名前を付けて保存をBlob download、開くをfile inputへfallbackする。擬似上書きは行わず、UIで上書き非対応を明示する。
+- Ctrl / Cmd + Sは保存、Ctrl / Cmd + Shift + Sは名前を付けて保存とし、ブラウザ標準ページ保存を抑止する。IME composition中は処理しない。
+- File System Access APIは利用者がpickerで選択したfileだけを扱い、Projectや実験データをサーバーへ送信しない。

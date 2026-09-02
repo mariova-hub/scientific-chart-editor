@@ -804,3 +804,38 @@ Autosave Managerはdebounce、書込み順序、世代管理、状態通知を�
 ### 27.4 制約とPrivacy
 
 Autosaveはbrowser origin内のIndexedDBだけを利用し、ネットワーク送信しない。Phase 3D-4ではBroadcastChannel等によるmulti-tab arbitrationを持たず、同時タブはlast successful writer winsである。
+
+## 28. Phase 3D-5 Formal File Persistence境界
+
+### 28.1 保存・Open経路
+
+```text
+Project State
+  ↓ strict Project Serializer
+Formal File Persistence
+  ├─ current handleあり → permission → createWritable → write → close
+  ├─ handleなし / Save As → showSaveFilePicker → write
+  └─ API非対応 → Blob download
+
+showOpenFilePicker / file input
+  ↓ File read + size check
+既存parse / hydration / validation
+  ↓
+成功時だけProject・Selection・File Sessionをatomic更新
+```
+
+`formalProjectFiles`はcapability detection、picker、permission、handle read/write、fallback選択、shortcut解釈を担当する。React ToolbarはPlotlyやFile System Access APIを直接呼ばず、PNG / SVG Renderer exportとも分離する。
+
+### 28.2 File Sessionとdirty
+
+Current File Sessionは`handle | null`、file name、最後に正式保存したcanonical Project snapshotを持つ。dirtyは現在のRecovery Project snapshotと最後の正式snapshotの差から導出する。autosave callbackは正式snapshotを変更しないためdirtyをfalseにしない。Formal Save / Save As / Open成功だけがsnapshotを更新し、新規作成はhandleとsnapshotを解除する。
+
+FileSystemFileHandleはProject Stateへ混入させず、IndexedDB `file-sessions/current-file-handle`へcanonical snapshotとともに保存する。Autosave storeとは分離する。起動時はautosave Projectがvalidに復元された場合だけhandle metadataを読み、permissionが`granted | prompt`ならSessionへ戻す。`denied`またはmetadata不正ならrecordを削除する。
+
+### 28.3 失敗・Fallback・Shortcut
+
+writeは`close()`成功後だけformal statusを`保存しました`へ進める。write例外では可能ならstreamをabortし、Project、autosave、current handle、dirtyを維持する。permission拒否は「名前を付けて保存」を案内する。
+
+API非対応ではdownloadとfile inputを利用し、上書き可能とは表示しない。fallback保存後の同一Sessionではfile nameと正式snapshotを保持するがhandleはnullのため、次回保存もdownloadとなる。F5後は保存先を再指定する。
+
+Keyboard shortcutはpure resolverでCtrl / Cmd + SとShift併用を判定する。composition中、Alt併用、S以外は処理せず、valid Projectだけ正式保存handlerへ渡す。

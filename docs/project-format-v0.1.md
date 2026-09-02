@@ -833,3 +833,32 @@ value:
 - 正式ファイル読込後は正規化済みProjectを再serializeしてautosaveする。正式保存はrecordを削除しない。確認済みの新規作成は、Datasetを持たない初期Projectを無効な正式Project JSONとして保存せず、同じkeyのautosave recordを削除する。
 - active / editing cell、draft、Selection、pane幅、export scale / background、通知、保存時刻はProjectの保存対象外である。自動保存履歴や複数Project slotはPhase 3D-4では持たない。
 - IndexedDB recordは同一originの端末ブラウザ内に留まり、サーバーやクラウドへ送信しない。複数タブの競合はlast writer winsを既知制約とする。
+
+## 28. Phase 3D-5 File Handle・正式保存状態の非保存契約
+
+Phase 3D-5もProject JSONの`schemaVersion: "0.1"`と全fieldを変更しない。次の値はmachine-localなFile Sessionであり、`.scientific-chart.json`へ含めない。
+
+- FileSystemFileHandle
+- 現在file name
+- dirty state
+- 保存中／保存済み／失敗status
+- permission state
+- picker capability
+
+File Handle再利用用metadataはProject JSONやautosave recordではなく、同じbrowser databaseの別storeへ格納する。
+
+```text
+database: scientific-chart-editor (version 2)
+object store: file-sessions
+key: current-file-handle
+value:
+  handle: FileSystemFileHandle
+  fileName: string
+  savedProjectSnapshot: canonical schemaVersion 0.1 Project JSON string
+```
+
+- `savedProjectSnapshot`はdirty比較とhandle整合確認用であり、正式Projectファイルそのもののschemaを拡張しない。起動時にstrict parserを通し、不正ならhandle recordごと削除する。
+- Autosave Projectが復元できない場合はfile sessionも復元しない。新規作成、fallback Open、fallback Save Asはpersisted handleを削除する。
+- permissionが`prompt`ならrecordを維持し、ユーザーが次に保存した時だけ`requestPermission`を呼ぶ。`denied`またはquery失敗はrecordを破棄する。
+- fallback downloadは推奨名`scientific-chart.scientific-chart.json`を用いる。File System pickerは同名をsuggestし、JSON filterを使う。handle nameはSession表示だけに利用する。
+- File handle、dirty、shortcut、fallback方式の違いによってProject writer、migration、backward compatibilityを変更しない。
