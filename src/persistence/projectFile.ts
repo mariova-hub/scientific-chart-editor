@@ -1,4 +1,9 @@
 import { DATA_LIMITS } from '../model/limits'
+import {
+  LEGACY_DEFAULT_BAR_GAP_PERCENT,
+  legacyBarWidthRatioToGapPercent,
+  legacyPlotlyGapToGapPercent,
+} from '../model/barGap'
 import { validateProjectSemantics } from '../model/projectValidation'
 import {
   DEFAULT_AXIS_TITLE_DISTANCE_PX,
@@ -6,7 +11,6 @@ import {
   defaultAxisLine,
   defaultAxisTickStyle,
   defaultAxisTitleStyle,
-  defaultBarOptions,
   defaultBarRowBindings,
   defaultBarStyle,
   defaultChartStyle,
@@ -56,6 +60,51 @@ function hasValidExtensions(value: Record<string, unknown>): boolean {
 
 function valueOrDefault<T>(value: unknown, fallback: T): unknown {
   return value === undefined ? fallback : value
+}
+
+function hydrateBarOptions(chart: Record<string, unknown>): unknown {
+  const bar = isRecord(chart.bar) ? chart.bar : {}
+  const orientation = valueOrDefault(bar.orientation, 'vertical')
+  if (bar.gapPercent !== undefined) {
+    return { orientation, gapPercent: bar.gapPercent }
+  }
+
+  const firstSeries = Array.isArray(chart.series) ? chart.series[0] : undefined
+  const style = isRecord(firstSeries) && isRecord(firstSeries.style)
+    ? firstSeries.style
+    : undefined
+  const barStyle = style && isRecord(style.bar) ? style.bar : undefined
+  const legacyWidthRatio = barStyle?.widthRatio
+  if (legacyWidthRatio !== undefined) {
+    const valid =
+      typeof legacyWidthRatio === 'number' &&
+      Number.isFinite(legacyWidthRatio) &&
+      legacyWidthRatio >= 0.05 &&
+      legacyWidthRatio <= 1
+    return {
+      orientation,
+      gapPercent: valid
+        ? legacyBarWidthRatioToGapPercent(legacyWidthRatio)
+        : null,
+    }
+  }
+
+  const legacyGapRatio = bar.gapRatio
+  if (legacyGapRatio !== undefined) {
+    const valid =
+      typeof legacyGapRatio === 'number' &&
+      Number.isFinite(legacyGapRatio) &&
+      legacyGapRatio >= 0 &&
+      legacyGapRatio <= 0.9
+    return {
+      orientation,
+      gapPercent: valid
+        ? legacyPlotlyGapToGapPercent(legacyGapRatio)
+        : null,
+    }
+  }
+
+  return { orientation, gapPercent: LEGACY_DEFAULT_BAR_GAP_PERCENT }
 }
 
 function hydrateProjectV01(value: unknown): unknown {
@@ -142,14 +191,23 @@ function hydrateProjectV01(value: unknown): unknown {
               ),
             }
           : style.marker
-        const bar = isRecord(style.bar)
-          ? {
-              ...defaultBarStyle(),
-              ...style.bar,
-              opacity: valueOrDefault(style.bar.opacity, 1),
-              widthRatio: valueOrDefault(style.bar.widthRatio, 0.8),
-            }
-          : style.bar
+        const barSource = isRecord(style.bar) ? style.bar : {}
+        const barDefaults = defaultBarStyle()
+        const bar = {
+          fillColor: valueOrDefault(
+            barSource.fillColor,
+            barDefaults.fillColor,
+          ),
+          borderColor: valueOrDefault(
+            barSource.borderColor,
+            barDefaults.borderColor,
+          ),
+          borderWidthPx: valueOrDefault(
+            barSource.borderWidthPx,
+            barDefaults.borderWidthPx,
+          ),
+          opacity: valueOrDefault(barSource.opacity, barDefaults.opacity),
+        }
         const errorBars = isRecord(item.errorBars)
           ? Object.fromEntries(
               Object.entries(item.errorBars).map(([key, errorBar]) => [
@@ -203,7 +261,7 @@ function hydrateProjectV01(value: unknown): unknown {
     chart: {
       ...chart,
       dataOrientation: valueOrDefault(chart.dataOrientation, 'columns'),
-      bar: valueOrDefault(chart.bar, defaultBarOptions()),
+      bar: hydrateBarOptions(chart),
       axes,
       series,
       title,
@@ -460,7 +518,6 @@ function isSeries(value: unknown): value is SeriesModel {
     typeof value.style.bar.borderColor !== 'string' ||
     typeof value.style.bar.borderWidthPx !== 'number' ||
     typeof value.style.bar.opacity !== 'number' ||
-    typeof value.style.bar.widthRatio !== 'number' ||
     !isRecord(value.errorBars) ||
     !isErrorBar(value.errorBars.x) ||
     !isErrorBar(value.errorBars.y) ||
@@ -476,8 +533,7 @@ function isSeries(value: unknown): value is SeriesModel {
     Number.isFinite(value.style.marker.sizePx) &&
     Number.isFinite(value.style.marker.borderWidthPx) &&
     Number.isFinite(value.style.bar.borderWidthPx) &&
-    Number.isFinite(value.style.bar.opacity) &&
-    Number.isFinite(value.style.bar.widthRatio)
+    Number.isFinite(value.style.bar.opacity)
   )
 }
 
@@ -499,8 +555,8 @@ function isProjectState(value: unknown): value is ProjectState {
     !isRecord(value.chart.bar) ||
     (value.chart.bar.orientation !== 'vertical' &&
       value.chart.bar.orientation !== 'horizontal') ||
-    typeof value.chart.bar.gapRatio !== 'number' ||
-    !Number.isFinite(value.chart.bar.gapRatio) ||
+    typeof value.chart.bar.gapPercent !== 'number' ||
+    !Number.isFinite(value.chart.bar.gapPercent) ||
     !isRecord(value.chart.title) ||
     typeof value.chart.title.visible !== 'boolean' ||
     typeof value.chart.title.text !== 'string' ||

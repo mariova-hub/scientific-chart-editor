@@ -497,7 +497,7 @@ Chart Modelの種類は`scatter | bar`、棒の向きは`vertical | horizontal`�
 
 `isCategoryAxis(project, dimension)`を共通の派生判定とする。縦棒のX軸、横棒のY軸ではRendererがcategory axisを生成し、保存済みAxis Modelのnumeric range、interval、log、reverseを適用しない。値軸では0を自動extent候補に含め、明示boundがなければ0 baselineを維持する。明示minimumが0以外の場合はModelを変更せずUI warningを派生する。
 
-棒のorientation、style、gap、widthは独自enum／比率を正規状態とし、Plotlyの`v` / `h`、`bargap`、bar trace、error directionは`src/renderer/plotly/`内だけで生成する。
+棒のorientation、style、要素間隔percentageは独自の意味値を正規状態とし、Plotlyの`v` / `h`、`bargap`、bar trace、error directionは`src/renderer/plotly/`内だけで生成する。Phase 3D-1以降は固定trace widthを正規状態に持たない。
 
 ### 17.3 Data GridとPane Resize
 
@@ -507,7 +507,7 @@ Data / Chart境界の幅はAppのSession Stateとし、`calculateDataPaneWidth`�
 
 ### 17.4 Phase 1 / 2互換性
 
-Persistence hydrationは`schemaVersion: "0.1"`を維持し、欠落した`chart.bar`、`series.barBindings`、bar opacity / widthだけをdefault補完する。旧scatterのX/Y/Y Error参照をCategory / Value / Errorの初期候補としてコピーするが、旧fieldは変更しない。明示された不正orientation、範囲外style、broken referenceは補正せず拒否し、validation成功後だけatomic loadする。
+Persistence hydrationは`schemaVersion: "0.1"`を維持し、欠落した`chart.bar`、`series.barBindings`、bar opacityをdefault補完する。Phase 3D-1より前のbar gap / widthはSection 25のpercentageへmigrationする。旧scatterのX/Y/Y Error参照をCategory / Value / Errorの初期候補としてコピーする。明示された不正orientation、範囲外style、broken referenceは補正せず拒否し、validation成功後だけatomic loadする。
 
 ## 18. Phase 3B-1 editable gridとPaste境界
 
@@ -742,3 +742,21 @@ Plotly Renderer → downloadImage
 RendererはChart Modelの論理width / heightとexport scaleを別値として扱う。透明背景はexport専用Figureにだけ設定する。画面上のPlotly instanceやChart Modelを一時的に書き換えず、完了・失敗のどちらでも一時DOMをpurgeして破棄する。PNG / SVGは同じAdapterを通るため、データ、軸、誤差範囲、ラベル、タイトル、grid、marginの意味配置を共有する。
 
 Export Option、進行状態、選択形式はProject StateやSelection Modelへ混入させない。将来JPEG / PDF等を追加する場合も、Project ModelではなくこのRenderer-neutralなexport境界を拡張する。
+
+## 25. Phase 3D-1 Bar Gap Width境界
+
+Chart Modelは1系列棒グラフの要素間隔を`bar.gapPercent`として保持する。これは`0..500`のrenderer-neutralなpercentageであり、Plotlyの`bargap`、trace `width`、offsetを正規状態にしない。
+
+```text
+Chart.bar.gapPercent
+        ↓
+barGapPercentToPlotlyGap
+        ↓
+Plotly layout.bargap = gapPercent / (100 + gapPercent)
+```
+
+Adapterはbar traceへ固定`width`を設定せず、Plotlyのcategory slot内の自動幅を利用する。したがってGap Widthが増えるほど`bargap`は単調増加し、自動棒幅は単調減少する。変換はorientationに依存せず、縦棒・横棒で同じである。Error Bar、Category、軸、gridは同じtrace / layout mappingを維持する。
+
+Format Paneは棒系列選択時に「要素の間隔 (%)」を提示し、確定値を単一`set-bar-gap-percent` actionでReducerへ渡す。Action Guardは0〜500の有限値を候補Projectで検証し、無効値をatomicに拒否する。この1操作粒度は将来のhistory層へ接続できる。
+
+Phase 3D以前の`0.1` readerは固定trace widthに相当した`series.style.bar.widthRatio`を優先してGap Widthへ変換する。固定widthがなければ旧`chart.bar.gapRatio`から変換し、両方なければ旧既定表示相当の25%を補う。旧値が新上限を超える場合だけ500%へmigrationする。正規化後のProject Stateと次回保存JSONにはlegacy fieldを残さない。明示された旧fieldの型・旧許容範囲違反は救済せず拒否する。

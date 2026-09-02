@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CHART_SIZE_LIMITS, STYLE_LIMITS } from '../../model/limits'
 import { isNumericAxis } from '../../model/dataBinding'
+import { BAR_GAP_PERCENT_LIMITS } from '../../model/barGap'
 import type {
   AxisModel,
   FontStyleModel,
@@ -199,15 +200,6 @@ function ChartControls({
                 横棒
               </label>
             </div>
-            <NumberDraftInput
-              label="棒の間隔"
-              value={project.chart.bar.gapRatio}
-              minimum={0}
-              maximum={0.9}
-              onCommit={(value) => {
-                if (value !== null) onAction({ type: 'set-bar-gap', value })
-              }}
-            />
           </>
         )}
       </fieldset>
@@ -865,15 +857,19 @@ function SeriesControls({
           }}
         />
         <NumberDraftInput
-          label="棒の幅"
-          value={series.style.bar.widthRatio}
-          minimum={0.05}
-          maximum={1}
+          label="要素の間隔 (%)"
+          value={project.chart.bar.gapPercent}
+          minimum={BAR_GAP_PERCENT_LIMITS.minimum}
+          maximum={BAR_GAP_PERCENT_LIMITS.maximum}
           onCommit={(value) => {
-            if (value !== null) onAction({ type: 'set-series-bar', seriesId: series.id, field: 'widthRatio', value })
+            if (value !== null) {
+              onAction({ type: 'set-bar-gap-percent', value })
+            }
           }}
         />
-        <p className="muted-note">棒の幅と間隔は0〜1の比率で指定します。</p>
+        <p className="muted-note">
+          0%で棒同士が接し、値を大きくすると棒が細く間隔が広がります。
+        </p>
       </fieldset>
     )
   }

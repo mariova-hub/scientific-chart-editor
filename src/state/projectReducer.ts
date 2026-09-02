@@ -39,7 +39,7 @@ export type ProjectAction =
     }
   | { type: 'set-row-label-column'; columnId: string | null }
   | { type: 'set-bar-orientation'; value: BarOrientation }
-  | { type: 'set-bar-gap'; value: number }
+  | { type: 'set-bar-gap-percent'; value: number }
   | { type: 'set-axis-title'; axisId: string; title: string }
   | { type: 'set-axis-title-visible'; axisId: string; visible: boolean }
   | { type: 'set-axis-title-distance'; axisId: string; value: number }
@@ -148,7 +148,7 @@ export type ProjectAction =
   | {
       type: 'set-series-bar'
       seriesId: string
-      field: 'fillColor' | 'borderColor' | 'borderWidthPx' | 'opacity' | 'widthRatio'
+      field: 'fillColor' | 'borderColor' | 'borderWidthPx' | 'opacity'
       value: string | number
     }
   | {
@@ -366,10 +366,10 @@ export function projectReducer(
       bar: { ...project.chart.bar, orientation: action.value },
     })
   }
-  if (action.type === 'set-bar-gap') {
+  if (action.type === 'set-bar-gap-percent') {
     return withChart(project, {
       ...project.chart,
-      bar: { ...project.chart.bar, gapRatio: action.value },
+      bar: { ...project.chart.bar, gapPercent: action.value },
     })
   }
 

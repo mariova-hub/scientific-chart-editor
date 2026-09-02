@@ -5,6 +5,7 @@ import {
   resolveScatterSeries,
 } from '../../model/dataBinding'
 import { CHART_SIZE_LIMITS } from '../../model/limits'
+import { barGapPercentToPlotlyGap } from '../../model/barGap'
 import type {
   AxisModel,
   AxisNumberFormat,
@@ -240,7 +241,6 @@ export function toPlotlyFigure(
       x: vertical ? categories : values,
       y: vertical ? values : categories,
       customdata: resolved.points.map((point) => point.sourceId),
-      width: series.style.bar.widthRatio,
       opacity: series.style.bar.opacity,
       marker: {
         color: series.style.bar.fillColor,
@@ -354,7 +354,10 @@ export function toPlotlyFigure(
       yaxis: yAxis
         ? toPlotlyAxis(yAxis, yValues, isCategoryAxis(project, 'y'), autoMargin)
         : undefined,
-      bargap: project.chart.type === 'bar' ? project.chart.bar.gapRatio : undefined,
+      bargap:
+        project.chart.type === 'bar'
+          ? barGapPercentToPlotlyGap(project.chart.bar.gapPercent)
+          : undefined,
       margin: {
         l: plotArea.margin.leftPx,
         r: plotArea.margin.rightPx,

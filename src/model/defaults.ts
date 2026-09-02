@@ -5,6 +5,7 @@ import type {
   GridLineAppearanceModel,
   SeriesModel,
 } from './types'
+import { DEFAULT_BAR_GAP_PERCENT } from './barGap'
 
 export const DEFAULT_FONT_FAMILY = 'Arial'
 
@@ -116,14 +117,13 @@ export function defaultBarStyle(): SeriesModel['style']['bar'] {
     borderColor: '#1d4ed8',
     borderWidthPx: 1,
     opacity: 1,
-    widthRatio: 0.8,
   }
 }
 
 export function defaultBarOptions() {
   return {
     orientation: 'vertical' as const,
-    gapRatio: 0.2,
+    gapPercent: DEFAULT_BAR_GAP_PERCENT,
   }
 }
 

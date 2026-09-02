@@ -230,17 +230,16 @@ describe('Plotly adapter', () => {
       { type: 'set-series-bar', seriesId, field: 'borderColor', value: '#445566' },
       { type: 'set-series-bar', seriesId, field: 'borderWidthPx', value: 3 },
       { type: 'set-series-bar', seriesId, field: 'opacity', value: 0.7 },
-      { type: 'set-series-bar', seriesId, field: 'widthRatio', value: 0.6 },
-      { type: 'set-bar-gap', value: 0.35 },
+      { type: 'set-bar-gap-percent', value: 100 },
     ] as const
     for (const action of actions) project = projectReducer(project, action)
     const figure = toPlotlyFigure(project)
     expect(figure.data[0]).toMatchObject({
       marker: { color: '#112233', line: { color: '#445566', width: 3 } },
       opacity: 0.7,
-      width: 0.6,
     })
-    expect(figure.layout.bargap).toBe(0.35)
+    expect(figure.data[0]).not.toHaveProperty('width')
+    expect(figure.layout.bargap).toBe(0.5)
   })
 
   it('uses a category axis without numeric-only settings', () => {

@@ -193,7 +193,6 @@ export interface SeriesModel {
       borderColor: string
       borderWidthPx: number
       opacity: number
-      widthRatio: number
     }
   }
   errorBars: {
@@ -210,7 +209,7 @@ export interface ChartModel {
   dataOrientation: DataOrientation
   bar: {
     orientation: BarOrientation
-    gapRatio: number
+    gapPercent: number
   }
   title: {
     visible: boolean

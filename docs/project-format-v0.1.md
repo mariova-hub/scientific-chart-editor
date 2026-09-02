@@ -578,7 +578,9 @@ Plotly固有の`dashdot`や凡例座標は保存しない。
 
 軸線・目盛・grid・label、marker・line、Y error style、chart background、plot background、title style、legend position、および確定したchart sizeは保存対象である。Selection、数値入力draft、警告、ドラッグ中preview、Y Errorの派生表示可否は保存しない。読み込み後は保存した意味設定と元データから派生状態を再計算する。
 
-## 17. Phase 3A棒グラフfieldと0.1互換性
+## 17. Phase 3A旧棒グラフfieldと0.1互換性
+
+この節はPhase 3A〜3Dが出力した旧保存形式を記録する。Phase 3D-1の現行writerはSection 25の`gapPercent`を使用し、本節の`gapRatio` / `widthRatio`はreader migration入力としてのみ扱う。
 
 Phase 3Aでも`schemaVersion: "0.1"`を使用し、Phase 1 / 2 readerが定義済み概念を具体化した次の意味fieldを保存する。
 
@@ -785,3 +787,25 @@ Phase 3Dも`schemaVersion: "0.1"`を維持し、軸文字配置をrenderer-neutr
 - Phase 1〜3Cファイルでfieldが欠落する場合だけ、label positionを`outside`、label distanceを`0`、title distanceを`8`へdefault hydrationする。明示された不正enum、非有限値、負値、上限超過は補正せずatomic load前に拒否する。
 - PNG / SVG出力形式、PNG scale（1 / 2 / 3）、現在背景／透明の選択は成果物生成時のSession / Export Optionであり保存しない。PNG binary、SVG文字列、Plotly export option、一時透明背景もProject JSONへ含めない。
 - PNG出力は保存されたchart sizeを論理寸法として読むだけであり、2× / 3×出力後も`chart.size`は同一でなければならない。透明出力後も`chart.style.backgroundColor`と`plotBackgroundColor`は同一でなければならない。
+
+## 25. Phase 3D-1 要素の間隔の保存契約
+
+Phase 3D-1も`schemaVersion: "0.1"`を維持し、棒グラフのGap WidthをScientific Chart Editorのpercentageとして保存する。
+
+```json
+{
+  "chart": {
+    "bar": {
+      "orientation": "vertical",
+      "gapPercent": 150
+    }
+  }
+}
+```
+
+- `gapPercent`は`間隔 ÷ 棒幅 × 100`に相当する0〜500の有限numberである。Plotlyの`bargap`、trace `width`、offsetは保存しない。
+- Writerは`series.style.bar.widthRatio`と`chart.bar.gapRatio`を出力しない。棒の塗り、枠線、不透明度等の外観は従来どおり`series.style.bar`へ保存する。
+- Phase 3D以前のファイルで`gapPercent`がない場合、旧描画で優先されていた有効な`widthRatio`から`((1 - widthRatio) / widthRatio) × 100`を導出する。widthがなければ`gapRatio / (1 - gapRatio) × 100`、両方なければ旧既定相当25%とする。
+- 旧有効値からの変換結果が500%を超える場合は、現行表現可能範囲の500%へmigrationする。これは旧形式の表現範囲を現行上限へ移すversion migrationであり、通常のUI入力を黙ってclampする挙動ではない。
+- 旧`widthRatio`は0.05〜1、旧`gapRatio`は0〜0.9の範囲だけmigration対象とする。明示された型不正、非有限値、旧範囲外値はinvalid fileとしてatomicに拒否する。
+- 正規化後は`gapPercent`だけをChart Modelに保持する。縦／横、画面／PNG／SVG、Chart寸法による派生Plotly値は保存しない。

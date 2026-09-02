@@ -192,8 +192,8 @@ describe('project persistence', () => {
       value: 'horizontal',
     })
     project = projectReducer(project, {
-      type: 'set-bar-gap',
-      value: 0.3,
+      type: 'set-bar-gap-percent',
+      value: 150,
     })
     project = projectReducer(project, {
       type: 'set-series-bar',
@@ -212,14 +212,13 @@ describe('project persistence', () => {
     const series = file.project.chart.series[0]
     delete series.barBindings
     delete series.style.bar.opacity
-    delete series.style.bar.widthRatio
     const result = parseProjectFile(JSON.stringify(file))
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.project.chart.type).toBe('scatter')
     expect(result.project.chart.bar).toEqual({
       orientation: 'vertical',
-      gapRatio: 0.2,
+      gapPercent: 25,
     })
     expect(result.project.chart.series[0].barBindings).toEqual({
       category: result.project.chart.series[0].bindings.x,

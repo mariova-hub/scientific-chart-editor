@@ -187,7 +187,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3D</span>
+        <span className="phase-badge">v0.1 · Phase 3D-1</span>
       </header>
 
       <Toolbar

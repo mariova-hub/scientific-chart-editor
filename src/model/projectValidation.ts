@@ -1,5 +1,6 @@
 import { CHART_SIZE_LIMITS, DATA_LIMITS } from './limits'
 import { STYLE_LIMITS } from './limits'
+import { BAR_GAP_PERCENT_LIMITS } from './barGap'
 import { resolveDataRange } from './dataBinding'
 import { validateLogAxes, validatePlotAreaSettings } from './axisValidation'
 import type {
@@ -347,8 +348,12 @@ export function validateProjectSemantics(
     [series.style.line.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].style.line.widthPx'],
     [series.style.bar.borderWidthPx, STYLE_LIMITS.minBorderWidthPx, STYLE_LIMITS.maxBorderWidthPx, 'project.chart.series[0].style.bar.borderWidthPx'],
     [series.style.bar.opacity, 0, 1, 'project.chart.series[0].style.bar.opacity'],
-    [series.style.bar.widthRatio, 0.05, 1, 'project.chart.series[0].style.bar.widthRatio'],
-    [project.chart.bar.gapRatio, 0, 0.9, 'project.chart.bar.gapRatio'],
+    [
+      project.chart.bar.gapPercent,
+      BAR_GAP_PERCENT_LIMITS.minimum,
+      BAR_GAP_PERCENT_LIMITS.maximum,
+      'project.chart.bar.gapPercent',
+    ],
     [series.errorBars.x.style.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].errorBars.x.style.widthPx'],
     [series.errorBars.x.style.capSizePx, STYLE_LIMITS.minCapSizePx, STYLE_LIMITS.maxCapSizePx, 'project.chart.series[0].errorBars.x.style.capSizePx'],
     [series.errorBars.y.style.widthPx, STYLE_LIMITS.minLineWidthPx, STYLE_LIMITS.maxLineWidthPx, 'project.chart.series[0].errorBars.y.style.widthPx'],
