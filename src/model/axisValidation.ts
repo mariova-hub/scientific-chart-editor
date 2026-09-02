@@ -62,7 +62,7 @@ export function validateAxisSettings(
       issues.push({
         code: 'axis.majorUnit',
         path: `${path}.ticks.majorInterval`,
-        message: `${label}の主単位は0より大きい有限数にしてください。`,
+        message: `${label}の主目盛間隔は0より大きい有限数にしてください。`,
       })
     }
     if (
@@ -73,7 +73,7 @@ export function validateAxisSettings(
       issues.push({
         code: 'axis.minorUnit',
         path: `${path}.ticks.minorInterval`,
-        message: `${label}の補助単位は0より大きい有限数にしてください。`,
+        message: `${label}の補助目盛間隔は0より大きい有限数にしてください。`,
       })
     }
 

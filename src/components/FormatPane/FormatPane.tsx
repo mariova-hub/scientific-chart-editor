@@ -347,12 +347,12 @@ function AxisControls({
         <legend>軸のオプション</legend>
         {categoryAxis ? (
           <p className="muted-note category-axis-note">
-            この軸はカテゴリ軸です。最小値・最大値・目盛間隔・対数設定は適用されません。
+            この軸はカテゴリ軸です。最小値・最大値・目盛り間隔・対数設定は適用されません。
           </p>
         ) : (
           <>
-        <section className="axis-option-section" aria-label="境界値">
-          <h3>境界値</h3>
+        <section className="axis-option-section" aria-label="範囲">
+          <h3>範囲</h3>
           <div className="two-column-controls">
             <NumberDraftInput
               label="最小値"
@@ -372,11 +372,11 @@ function AxisControls({
             />
           </div>
         </section>
-        <section className="axis-option-section" aria-label="単位">
-          <h3>単位</h3>
+        <section className="axis-option-section" aria-label="目盛り間隔">
+          <h3>目盛り間隔</h3>
           <div className="two-column-controls">
             <NumberDraftInput
-              label="主単位"
+              label="主目盛間隔"
               value={majorUnit}
               allowAuto
               positive
@@ -385,7 +385,7 @@ function AxisControls({
               }
             />
             <NumberDraftInput
-              label="補助単位"
+              label="補助目盛間隔"
               value={minorUnit}
               allowAuto
               positive

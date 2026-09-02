@@ -809,3 +809,7 @@ Phase 3D-1も`schemaVersion: "0.1"`を維持し、棒グラフのGap WidthをSci
 - 旧有効値からの変換結果が500%を超える場合は、現行表現可能範囲の500%へmigrationする。これは旧形式の表現範囲を現行上限へ移すversion migrationであり、通常のUI入力を黙ってclampする挙動ではない。
 - 旧`widthRatio`は0.05〜1、旧`gapRatio`は0〜0.9の範囲だけmigration対象とする。明示された型不正、非有限値、旧範囲外値はinvalid fileとしてatomicに拒否する。
 - 正規化後は`gapPercent`だけをChart Modelに保持する。縦／横、画面／PNG／SVG、Chart寸法による派生Plotly値は保存しない。
+
+## 26. Phase 3D-3 軸設定UI用語と保存形式の分離
+
+Phase 3D-3はUI表示を「範囲（最小値・最大値）」と「目盛り間隔（主目盛間隔・補助目盛間隔）」へ整理するが、保存fieldは既存の`scale.minimum`、`scale.maximum`、`ticks.majorInterval`、`ticks.minorInterval`を維持する。表示用語はProject JSONへ保存せず、schemaVersion、default hydration、runtime validation、migrationを変更しない。

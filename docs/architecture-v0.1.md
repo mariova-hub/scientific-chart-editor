@@ -541,7 +541,7 @@ Gridは空プロジェクトでもA1を初期active cellとして表示する。
 
 ### 19.1 数値軸判定
 
-`isNumericAxis(project, dimension)`をChart Typeとbar orientationから導出する。scatterはX/Yとも数値軸、vertical barはYだけ、horizontal barはXだけが数値軸である。Format Paneはこの判定で境界値・単位・linear/logを提示し、Rendererは対になる`isCategoryAxis`判定でカテゴリ軸へnumeric rangeやintervalを渡さない。
+`isNumericAxis(project, dimension)`をChart Typeとbar orientationから導出する。scatterはX/Yとも数値軸、vertical barはYだけ、horizontal barはXだけが数値軸である。Format Paneはこの判定で範囲・目盛り間隔・linear/logを提示し、Rendererは対になる`isCategoryAxis`判定でカテゴリ軸へnumeric rangeやintervalを渡さない。
 
 ### 19.2 Draft・候補検証・確定
 
@@ -760,3 +760,7 @@ Adapterはbar traceへ固定`width`を設定せず、Plotlyのcategory slot内�
 Format Paneは棒系列選択時に「要素の間隔 (%)」を提示し、確定値を単一`set-bar-gap-percent` actionでReducerへ渡す。Action Guardは0〜500の有限値を候補Projectで検証し、無効値をatomicに拒否する。この1操作粒度は将来のhistory層へ接続できる。
 
 Phase 3D以前の`0.1` readerは固定trace widthに相当した`series.style.bar.widthRatio`を優先してGap Widthへ変換する。固定widthがなければ旧`chart.bar.gapRatio`から変換し、両方なければ旧既定表示相当の25%を補う。旧値が新上限を超える場合だけ500%へmigrationする。正規化後のProject Stateと次回保存JSONにはlegacy fieldを残さない。明示された旧fieldの型・旧許容範囲違反は救済せず拒否する。
+
+## 26. Phase 3D-3 Axis UI用語境界
+
+Format Paneは数値軸の`scale.minimum / maximum`を「範囲」の「最小値／最大値」、`ticks.majorInterval / minorInterval`を「目盛り間隔」の「主目盛間隔／補助目盛間隔」として表示する。これはUI terminologyだけの対応であり、Axis Model、ProjectAction、validation code、Persistence schema、Renderer Adapterのfield名や責務は変更しない。`isNumericAxis`による表示境界を維持し、カテゴリ軸にはこれらのnumeric-only sectionを生成しない。

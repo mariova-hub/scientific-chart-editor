@@ -127,14 +127,14 @@ function validateAxis(axis: AxisModel, path: string): ValidationIssue[] {
     (!Number.isFinite(axis.ticks.majorInterval.step) ||
       axis.ticks.majorInterval.step <= 0)
   ) {
-    issues.push(issue('axis.majorUnit', `${path}.ticks.majorInterval`, '主目盛は0より大きい値にしてください。'))
+    issues.push(issue('axis.majorUnit', `${path}.ticks.majorInterval`, '主目盛間隔は0より大きい値にしてください。'))
   }
   if (
     axis.ticks.minorInterval.mode === 'fixed' &&
     (!Number.isFinite(axis.ticks.minorInterval.step) ||
       axis.ticks.minorInterval.step <= 0)
   ) {
-    issues.push(issue('axis.minorUnit', `${path}.ticks.minorInterval`, '補助目盛は0より大きい値にしてください。'))
+    issues.push(issue('axis.minorUnit', `${path}.ticks.minorInterval`, '補助目盛間隔は0より大きい値にしてください。'))
   }
   if (!isHexColor(axis.line.color)) {
     issues.push(issue('style.color', `${path}.line.color`, '軸線の色は#RRGGBB形式にしてください。'))
