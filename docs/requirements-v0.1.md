@@ -461,3 +461,12 @@ Phase 3DはPNG出力と軸文字配置の仕上げに限定し、JPEG / PDF、�
 - ダブルクリックと「表示をリセット」は同じ結果とし、現在のAxis Modelが固定rangeならそのrange、AutoならAuto表示へ戻す。Axis ModelをAutoへ変更する操作ではない。
 - 一時Zoomと表示リセットはProject State、Selection、autosave、formal dirty stateへ影響させず、Project JSONへ保存しない。PNG／SVGは一時ZoomではなくChart Modelから生成する正式Figureを出力する。
 - Phase 3D-6の`scrollZoom: false`と通常page scroll優先を維持する。
+
+## 26. Phase 3Eで確定した公開・配布要件
+
+- `main`へのpushを起点にGitHub Actionsでtest、lint、Vite production buildを行い、build成功時だけ`dist`をGitHub Pagesへ公開する。生成済み`dist`をrepositoryへcommitしない。
+- 公開先はProject Site `https://mariova-hub.github.io/scientific-chart-editor/`とし、生徒はHTTPS URLをChromeで開くだけで利用できる。Node.js、npm、Git、ローカルインストールを要求しない。
+- localhost開発はURL root、production buildは`/scientific-chart-editor/`をbase pathとする。SPA routingを使用しない現状では404 redirectやrouterを追加しない。
+- 公開版でもIndexedDB autosave、Clipboard、PNG / SVG、Project保存・読込を維持する。File System Access APIが利用不能または権限拒否の場合はdownload / file input fallbackを維持する。
+- IndexedDBはorigin単位であるため、localhostとGitHub Pagesのautosaveは別状態である。同じGitHub Pages URLの再訪では復元でき、端末・origin間の移動には`.scientific-chart.json`を使用する。
+- client-side static hostingを維持し、API key、GitHub Secret、外部送信、analytics、telemetry、Service Workerを導入しない。

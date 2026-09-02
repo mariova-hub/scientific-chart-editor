@@ -853,3 +853,21 @@ Drag ZoomはPlotly element内部だけに存在するtemporary viewであり、P
 Plotly既定の`doubleClick: "reset+autosize"`は操作回数によってinitial rangeとAuto rangeを切り替えるため、configでは`doubleClick: "reset"`を明示する。これによりダブルクリックは直近の正式描画rangeへ戻り、「表示をリセット」buttonのModel由来reset layoutと意味結果を統一する。Drag Zoomの既定drag modeと`scrollZoom: false`は維持する。
 
 ResetはProject、Selection、autosave、dirty snapshotを変更しない。export rendererはDOM上のtemporary viewを読まず、Projectから別の正式Figureを生成するため、PNG／SVGへZoomを混入させない。
+
+## 31. Phase 3E Static Deployment境界
+
+```text
+GitHub main branch
+  ↓ GitHub Actions (Node.js 22)
+npm ci → test → lint → Vite build
+  ↓ dist artifact only
+GitHub Pages Project Site (HTTPS)
+  ↓
+Chromebook / Windows Chrome
+```
+
+Viteはdevelopment modeでは`base: "/"`、production build / previewでは`base: "/scientific-chart-editor/"`を使用する。これによりlocalhostの開発URLを維持しつつ、Project Site配下のJS / CSS assetを絶対origin rootへ誤解決しない。React Routerやserver-side routeを持たないため、Pages固有の404 fallbackは追加しない。
+
+DeploymentはApplication Model、Renderer、Persistenceから独立したbuild / hosting責務である。Workflowはrepository read、Pages write、OIDC tokenの必要最小限の権限だけをjob単位で持ち、`dist`以外のsource、test、docs、node_modules、Git metadataを公開artifactへ含めない。静的client-side applicationのためSecretやAPI keyは使用しない。
+
+GitHub PagesのHTTPS originでも既存Browser Adapterを使用する。IndexedDB autosaveとFile Handle metadataはorigin-localでありlocalhostとは共有しない。File System Access APIはcapability / permissionを実行時に判定し、利用不能時のdownload / file input fallbackを削除しない。Projectファイルだけがorigin・端末を越える正式な移送手段である。

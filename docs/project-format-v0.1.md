@@ -870,3 +870,9 @@ value:
 ## 30. Phase 3D-7 Temporary Zoomの非保存契約
 
 Drag Zoom range、Zoom有無、Reset履歴はPlotly element内のtemporary viewであり、Project JSONとautosave recordへ保存しない。Formal Save／Loadとstartup restoreはAxis Modelだけを復元する。ダブルクリックと「表示をリセット」は現在Projectから正式axis layoutを再生成するRenderer操作で、`schemaVersion: "0.1"`、Axis field、migration、runtime validationを変更しない。PNG／SVGもtemporary viewを参照しない。
+
+## 31. Phase 3E Hostingと保存境界
+
+GitHub Pages公開はProject JSON schemaを変更しない。`schemaVersion: "0.1"`、writer、reader、hydration、runtime validation、atomic loadをそのまま維持し、deployment URL、Vite base、workflow、GitHub metadataはProjectへ保存しない。
+
+IndexedDB autosaveとFile Handle metadataはbrowser originに属するため、localhostと`https://mariova-hub.github.io`では別recordとなる。同じPages originとpathの再訪では既存autosaveを復元する。別端末・別originへの持ち運びは`.scientific-chart.json`が担い、公開環境を理由にProject内容や実験データをserverへ送信しない。
