@@ -1,4 +1,11 @@
-import { useMemo, useReducer, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import './App.css'
 import {
   ChartCanvas,
@@ -28,7 +35,13 @@ import {
   loadProjectAtomically,
   ProjectSerializationError,
   serializeProjectFile,
+  serializeProjectRecoverySnapshot,
 } from './persistence/projectFile'
+import {
+  ProjectAutosaveManager,
+  type AutosaveStatus,
+} from './persistence/autosave'
+import { IndexedDbAutosaveStorage } from './persistence/indexedDbAutosave'
 import { projectReducer, type ProjectAction } from './state/projectReducer'
 import { prepareProjectAction } from './state/projectActionGuard'
 import { defaultSelection } from './state/selection'
@@ -52,7 +65,15 @@ function App() {
   const [exportOptions, setExportOptions] = useState<ChartExportOptions>(
     DEFAULT_CHART_EXPORT_OPTIONS,
   )
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>({
+    state: 'restoring',
+  })
+  const [autosaveReady, setAutosaveReady] = useState(false)
   const chartRef = useRef<ChartCanvasHandle>(null)
+  const projectRef = useRef(project)
+  const autosaveManagerRef = useRef<ProjectAutosaveManager | null>(null)
+  const lastSavedSerializedRef = useRef<string | null>(null)
+  const pendingImmediateSerializedRef = useRef<string | null>(null)
   const issues = useMemo(() => validateProjectSemantics(project), [project])
   const resolvedCount = useMemo(
     () =>
@@ -67,6 +88,134 @@ function App() {
   const showMessage = (text: string, kind: MessageKind) => {
     setMessage(text)
     setMessageKind(kind)
+  }
+
+  useEffect(() => {
+    projectRef.current = project
+  }, [project])
+
+  useEffect(() => {
+    let active = true
+    if (!window.indexedDB) {
+      queueMicrotask(() => {
+        if (!active) return
+        setAutosaveStatus({
+          state: 'error',
+          message:
+            '自動保存に失敗しました。プロジェクトファイルとして保存してください。',
+        })
+        lastSavedSerializedRef.current = null
+        setAutosaveReady(true)
+      })
+      return () => {
+        active = false
+      }
+    }
+
+    const manager = new ProjectAutosaveManager(
+      new IndexedDbAutosaveStorage(window.indexedDB),
+      {
+        onStatus: (status) => {
+          if (active) setAutosaveStatus(status)
+        },
+        onSaved: (record) => {
+          if (!active) return
+          lastSavedSerializedRef.current = record.serializedProject
+          if (
+            pendingImmediateSerializedRef.current === record.serializedProject
+          ) {
+            pendingImmediateSerializedRef.current = null
+          }
+        },
+      },
+    )
+    autosaveManagerRef.current = manager
+
+    void manager.restore(projectRef.current).then((result) => {
+      if (!active) return
+      if (result.kind === 'restored') {
+        lastSavedSerializedRef.current = result.record.serializedProject
+        dispatch({ type: 'load-project', project: result.project })
+        setSelection(defaultSelection(result.project))
+        setMessage('前回の自動保存を復元しました。')
+        setMessageKind('success')
+      } else {
+        lastSavedSerializedRef.current = null
+        if (result.kind === 'invalid' || result.kind === 'storage-error') {
+          setMessage(result.message)
+          setMessageKind('error')
+        }
+      }
+      setAutosaveReady(true)
+    })
+
+    return () => {
+      active = false
+      manager.dispose()
+      if (autosaveManagerRef.current === manager) {
+        autosaveManagerRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!autosaveReady) return
+    const manager = autosaveManagerRef.current
+    if (!manager) return
+    if (project.datasets.length !== 1) {
+      manager.cancelPending()
+      return
+    }
+    try {
+      const serialized = serializeProjectRecoverySnapshot(project)
+      if (
+        serialized === lastSavedSerializedRef.current ||
+        serialized === pendingImmediateSerializedRef.current
+      ) {
+        manager.cancelPending()
+        return
+      }
+      manager.schedule(project)
+    } catch {
+      queueMicrotask(() => {
+        setAutosaveStatus({
+          state: 'error',
+          message:
+            '自動保存に失敗しました。プロジェクトファイルとして保存してください。',
+        })
+      })
+    }
+  }, [autosaveReady, project])
+
+  const saveAutosaveNow = (nextProject: typeof project) => {
+    const manager = autosaveManagerRef.current
+    if (!manager) return
+    try {
+      const serialized = serializeProjectRecoverySnapshot(nextProject)
+      pendingImmediateSerializedRef.current = serialized
+      void manager.saveNow(nextProject).then((result) => {
+        if (
+          !result.ok &&
+          pendingImmediateSerializedRef.current === serialized
+        ) {
+          pendingImmediateSerializedRef.current = null
+        }
+      })
+    } catch {
+      setAutosaveStatus({
+        state: 'error',
+        message:
+          '自動保存に失敗しました。プロジェクトファイルとして保存してください。',
+      })
+    }
+  }
+
+  const clearAutosaveNow = () => {
+    const manager = autosaveManagerRef.current
+    lastSavedSerializedRef.current = null
+    pendingImmediateSerializedRef.current = null
+    if (!manager) return
+    void manager.clearNow()
   }
 
   const handleProjectAction = (action: ProjectAction) => {
@@ -146,6 +295,21 @@ function App() {
     }
   }
 
+  const handleNew = () => {
+    if (
+      !window.confirm(
+        '現在の作業内容を消去して新しいグラフを作成しますか？',
+      )
+    ) {
+      return
+    }
+    const nextProject = createEmptyProject()
+    dispatch({ type: 'load-project', project: nextProject })
+    setSelection(defaultSelection(nextProject))
+    clearAutosaveNow()
+    showMessage('新しいグラフを作成しました。', 'success')
+  }
+
   const handleLoad = async (file: File) => {
     if (file.size > DATA_LIMITS.maxProjectFileBytes) {
       showMessage('プロジェクトファイルは5 MiB以下にしてください。', 'error')
@@ -160,6 +324,7 @@ function App() {
       }
       dispatch({ type: 'load-project', project: loaded.project })
       setSelection(defaultSelection(loaded.project))
+      saveAutosaveNow(loaded.project)
       showMessage('プロジェクトを検証して読み込みました。', 'success')
     } catch {
       showMessage('プロジェクトファイルを読み取れませんでした。', 'error')
@@ -175,6 +340,28 @@ function App() {
     }
   }
 
+  if (!autosaveReady) {
+    return (
+      <div className="app-shell">
+        <header className="app-header">
+          <div className="brand-block">
+            <div className="brand-mark" aria-hidden="true">
+              SCE
+            </div>
+            <div>
+              <p className="product-kicker">Scientific Chart Editor</p>
+              <h1>Project workspace</h1>
+            </div>
+          </div>
+          <span className="phase-badge">v0.1 · Phase 3D-4</span>
+        </header>
+        <section className="startup-restore" role="status" aria-live="polite">
+          前回の作業を確認しています...
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -187,7 +374,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3D-3</span>
+        <span className="phase-badge">v0.1 · Phase 3D-4</span>
       </header>
 
       <Toolbar
@@ -195,6 +382,8 @@ function App() {
         canExport={canPersist}
         message={message}
         messageKind={messageKind}
+        autosaveStatus={autosaveStatus}
+        onNew={handleNew}
         onSave={handleSave}
         onLoad={handleLoad}
         exportOptions={exportOptions}

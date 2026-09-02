@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import type { AutosaveStatus } from '../../persistence/autosave'
 import type { ChartExportOptions } from '../../renderer/exportOptions'
 
 interface ToolbarProps {
@@ -6,6 +7,8 @@ interface ToolbarProps {
   canExport: boolean
   message: string | null
   messageKind: 'success' | 'error' | 'info'
+  autosaveStatus: AutosaveStatus
+  onNew: () => void
   onSave: () => void
   onLoad: (file: File) => void
   exportOptions: ChartExportOptions
@@ -18,6 +21,8 @@ export function Toolbar({
   canExport,
   message,
   messageKind,
+  autosaveStatus,
+  onNew,
   onSave,
   onLoad,
   exportOptions,
@@ -25,9 +30,27 @@ export function Toolbar({
   onExport,
 }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const autosaveText = (() => {
+    if (autosaveStatus.state === 'restoring') return '前回の作業を確認中...'
+    if (autosaveStatus.state === 'idle') return '自動保存待機中'
+    if (autosaveStatus.state === 'saving') return '保存中...'
+    if (autosaveStatus.state === 'error') return autosaveStatus.message
+    const time = new Date(autosaveStatus.savedAt).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    return `自動保存済み ${time}`
+  })()
 
   return (
     <div className="toolbar" aria-label="プロジェクト操作">
+      <button
+        type="button"
+        className="button button-secondary"
+        onClick={onNew}
+      >
+        新規作成
+      </button>
       <button
         type="button"
         className="button button-primary"
@@ -119,12 +142,21 @@ export function Toolbar({
           {exportOptions.format.toUpperCase()}を保存
         </button>
       </section>
-      <div
-        className={`toolbar-message message-${messageKind}`}
-        role="status"
-        aria-live="polite"
-      >
-        {message ?? '未保存の編集状態はブラウザ内だけに保持されます。'}
+      <div className="toolbar-statuses">
+        <div
+          className={`autosave-status autosave-${autosaveStatus.state}`}
+          role="status"
+          aria-live="polite"
+        >
+          {autosaveText}
+        </div>
+        <div
+          className={`toolbar-message message-${messageKind}`}
+          role="status"
+          aria-live="polite"
+        >
+          {message ?? '編集内容はこのブラウザへ自動保存されます。'}
+        </div>
       </div>
     </div>
   )

@@ -813,3 +813,23 @@ Phase 3D-1も`schemaVersion: "0.1"`を維持し、棒グラフのGap WidthをSci
 ## 26. Phase 3D-3 軸設定UI用語と保存形式の分離
 
 Phase 3D-3はUI表示を「範囲（最小値・最大値）」と「目盛り間隔（主目盛間隔・補助目盛間隔）」へ整理するが、保存fieldは既存の`scale.minimum`、`scale.maximum`、`ticks.majorInterval`、`ticks.minorInterval`を維持する。表示用語はProject JSONへ保存せず、schemaVersion、default hydration、runtime validation、migrationを変更しない。
+
+## 27. Phase 3D-4 自動保存record契約
+
+自動保存は新しいProject schemaではない。正式保存と共通のProject envelope writerが生成した`.scientific-chart.json`と同形の文字列を、次のIndexedDB envelopeへ格納する。
+
+```text
+database: scientific-chart-editor
+object store: autosave
+key: current-project
+value:
+  serializedProject: string
+  savedAt: ISO 8601 string
+```
+
+- `serializedProject`は正式保存と同じ`app`、`schemaVersion: "0.1"`、`project`を持ち、同じparse、欠落field hydration、runtime shape validationを通す。autosaveのsemantic profileだけは未設定の必須bindingを回復可能な作業途中状態として許可する。壊れたID参照、不正軸、不正書式等は正式保存と同様に拒否し、Plotly JSONやAutosave専用Project fieldを追加しない。
+- `savedAt`は自動保存status表示用のmetadataでありProject JSONへ混入させない。invalid envelope、invalid date、JSON不正、Project不正はatomic restore前に拒否する。
+- 復元失敗時は現在の初期Projectを維持し、不正recordを削除する。旧`0.1` Project文字列は正式ファイルと同じmigrationを通るため、Phase 1〜3D-3との互換性を維持する。
+- 正式ファイル読込後は正規化済みProjectを再serializeしてautosaveする。正式保存はrecordを削除しない。確認済みの新規作成は、Datasetを持たない初期Projectを無効な正式Project JSONとして保存せず、同じkeyのautosave recordを削除する。
+- active / editing cell、draft、Selection、pane幅、export scale / background、通知、保存時刻はProjectの保存対象外である。自動保存履歴や複数Project slotはPhase 3D-4では持たない。
+- IndexedDB recordは同一originの端末ブラウザ内に留まり、サーバーやクラウドへ送信しない。複数タブの競合はlast writer winsを既知制約とする。

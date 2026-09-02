@@ -4,7 +4,10 @@ import {
   legacyBarWidthRatioToGapPercent,
   legacyPlotlyGapToGapPercent,
 } from '../model/barGap'
-import { validateProjectSemantics } from '../model/projectValidation'
+import {
+  validateProjectForRecovery,
+  validateProjectSemantics,
+} from '../model/projectValidation'
 import {
   DEFAULT_AXIS_TITLE_DISTANCE_PX,
   defaultAxisLabels,
@@ -599,7 +602,12 @@ function parseFailure(
   return { ok: false, error: { code, path, message } }
 }
 
-function validateFileShape(value: unknown): ProjectParseResult {
+type ProjectValidator = (project: ProjectState) => ValidationIssue[]
+
+function validateFileShape(
+  value: unknown,
+  validateProject: ProjectValidator,
+): ProjectParseResult {
   if (!isRecord(value)) {
     return parseFailure('schema.root', '$', 'トップレベルはobjectである必要があります。')
   }
@@ -614,12 +622,15 @@ function validateFileShape(value: unknown): ProjectParseResult {
     return parseFailure('schema.project', '$.project', 'projectの必須構造または値の型が不正です。')
   }
 
-  const semanticIssues = validateProjectSemantics(hydratedProject)
+  const semanticIssues = validateProject(hydratedProject)
   if (semanticIssues.length > 0) return { ok: false, error: semanticIssues[0] }
   return { ok: true, project: hydratedProject }
 }
 
-export function parseProjectFile(text: string): ProjectParseResult {
+function parseProjectText(
+  text: string,
+  validateProject: ProjectValidator,
+): ProjectParseResult {
   if (new TextEncoder().encode(text).byteLength > DATA_LIMITS.maxProjectFileBytes) {
     return parseFailure('file.size', '$', 'プロジェクトファイルは5 MiB以下にしてください。')
   }
@@ -630,7 +641,15 @@ export function parseProjectFile(text: string): ProjectParseResult {
   } catch {
     return parseFailure('json.syntax', '$', 'JSONの構文が壊れています。')
   }
-  return validateFileShape(parsed)
+  return validateFileShape(parsed, validateProject)
+}
+
+export function parseProjectFile(text: string): ProjectParseResult {
+  return parseProjectText(text, validateProjectSemantics)
+}
+
+export function parseProjectRecoverySnapshot(text: string): ProjectParseResult {
+  return parseProjectText(text, validateProjectForRecovery)
 }
 
 export class ProjectSerializationError extends Error {
@@ -643,8 +662,11 @@ export class ProjectSerializationError extends Error {
   }
 }
 
-export function serializeProjectFile(project: ProjectState): string {
-  const issues = validateProjectSemantics(project)
+function serializeProject(
+  project: ProjectState,
+  validateProject: ProjectValidator,
+): string {
+  const issues = validateProject(project)
   if (issues.length > 0) throw new ProjectSerializationError(issues)
   const file: ProjectFileV01 = {
     schemaVersion: '0.1',
@@ -654,11 +676,28 @@ export function serializeProjectFile(project: ProjectState): string {
   return JSON.stringify(file, null, 2)
 }
 
+export function serializeProjectFile(project: ProjectState): string {
+  return serializeProject(project, validateProjectSemantics)
+}
+
+export function serializeProjectRecoverySnapshot(project: ProjectState): string {
+  return serializeProject(project, validateProjectForRecovery)
+}
+
 export function loadProjectAtomically(
   currentProject: ProjectState,
   text: string,
 ): { project: ProjectState; error: ValidationIssue | null } {
   const result = parseProjectFile(text)
+  if (!result.ok) return { project: currentProject, error: result.error }
+  return { project: result.project, error: null }
+}
+
+export function loadProjectRecoverySnapshotAtomically(
+  currentProject: ProjectState,
+  text: string,
+): { project: ProjectState; error: ValidationIssue | null } {
+  const result = parseProjectRecoverySnapshot(text)
   if (!result.ok) return { project: currentProject, error: result.error }
   return { project: result.project, error: null }
 }

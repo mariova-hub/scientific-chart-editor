@@ -159,12 +159,46 @@ h2 {
   padding-bottom: 4px;
 }
 
-.toolbar-message {
+.toolbar-statuses {
   min-width: 0;
   margin-left: auto;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.autosave-status,
+.toolbar-message {
   padding: 5px 8px;
   font-size: 12px;
   text-align: right;
+}
+
+.autosave-saved {
+  color: #166534;
+}
+
+.autosave-saving,
+.autosave-restoring,
+.autosave-idle {
+  color: #65738a;
+}
+
+.autosave-error {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.startup-restore {
+  max-width: 720px;
+  margin: 80px auto;
+  padding: 28px;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+  color: #526078;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 3px 12px rgb(32 52 80 / 5%);
 }
 
 .message-success {
@@ -979,9 +1013,14 @@ legend {
     flex-wrap: wrap;
   }
 
-  .toolbar-message {
+  .toolbar-statuses {
     width: 100%;
     margin-left: 0;
+    justify-items: start;
+  }
+
+  .autosave-status,
+  .toolbar-message {
     text-align: left;
   }
 

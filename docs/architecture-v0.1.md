@@ -764,3 +764,43 @@ Phase 3D以前の`0.1` readerは固定trace widthに相当した`series.style.ba
 ## 26. Phase 3D-3 Axis UI用語境界
 
 Format Paneは数値軸の`scale.minimum / maximum`を「範囲」の「最小値／最大値」、`ticks.majorInterval / minorInterval`を「目盛り間隔」の「主目盛間隔／補助目盛間隔」として表示する。これはUI terminologyだけの対応であり、Axis Model、ProjectAction、validation code、Persistence schema、Renderer Adapterのfield名や責務は変更しない。`isNumericAxis`による表示境界を維持し、カテゴリ軸にはこれらのnumeric-only sectionを生成しない。
+
+## 27. Phase 3D-4 Autosave境界
+
+### 27.1 責務分離
+
+```text
+Project State変更
+      ↓ 1,000ms debounce
+既存Project Serializer
+      ↓
+Autosave Manager
+      ↓
+AutosaveStorage interface
+      ↓
+IndexedDB Adapter
+
+起動時 IndexedDB record
+      ↓
+既存parse / hydration / validation
+      ↓
+成功時だけ load-project action（atomic restore）
+```
+
+Autosave Managerはdebounce、書込み順序、世代管理、状態通知を担当し、IndexedDB APIを知らない。IndexedDB Adapterはdatabase / transactionだけを担当し、Project構造を解釈しない。UIはAutosave Managerを介し、IndexedDBを直接操作しない。
+
+### 27.2 SnapshotとSession State
+
+監視対象はReducerが確定した現在のProject State snapshotである。正式保存とautosaveは同一Project envelope、hydration、structure validatorを共用する。正式保存は完成に必要なbindingも要求し、autosaveは`binding.required` / `errorBar.required`だけを回復可能な未完成状態として許可する。参照整合、軸、書式、ID、寸法等の安全性検証は共通であり、Project形式を二重化しない。History全体は保存しない。Selection、Active Cell、Cell Draft、IME composition、Format Pane draft、Data Pane幅、resize preview、export option、status messageはReducer外のSession Stateとして除外される。
+
+書込みは直列化し、先行write中に新しいsnapshotが確定した場合は後続writeへ送る。新規作成はpending timerをcancelし、開始済み旧writeの後へ削除をqueueする。同時にgenerationを進め、旧write完了時の`onSaved` / status callbackを無視する。ページ離脱時だけの非同期writeには依存せず、通常のdebounceを主契約とする。
+
+### 27.3 起動・正式読込・新規作成
+
+起動中は利用者編集と復元が競合しない待機状態を表示する。valid recordだけを安全なSelectionとともに一括反映する。invalid recordは現在Projectを変更せず削除し、初期Projectで編集を開始できる。IndexedDB read / write失敗もProject操作を止めず、statusとして通知する。
+
+正式Project読込は既存atomic load成功後に同じProjectを即時autosaveする。正式保存はautosaveを維持する。新規作成は確認後、初期ProjectをReducerへ一括反映し、空Projectは正式serializerの有効条件外であるためautosave recordを削除して古い作業復元snapshotを残さない。
+
+### 27.4 制約とPrivacy
+
+Autosaveはbrowser origin内のIndexedDBだけを利用し、ネットワーク送信しない。Phase 3D-4ではBroadcastChannel等によるmulti-tab arbitrationを持たず、同時タブはlast successful writer winsである。

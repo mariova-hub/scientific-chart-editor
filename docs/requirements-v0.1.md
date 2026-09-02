@@ -423,3 +423,15 @@ Phase 3DはPNG出力と軸文字配置の仕上げに限定し、JPEG / PDF、�
 - 数値軸のユーザー向け設定は「範囲（最小値・最大値）」と「目盛り間隔（主目盛間隔・補助目盛間隔）」に分けて表示する。
 - Auto／固定、入力確定、validationの意味契約は変更しない。カテゴリ軸には範囲・目盛り間隔を表示しない。
 - `minimum`、`maximum`、`majorInterval`、`minorInterval`等の内部Model名をユーザー向けラベルへ露出させない。
+
+## 22. Phase 3D-4で確定した自動保存・作業復元要件
+
+- 正式保存は持ち運び・提出・長期保管のための`.scientific-chart.json`、自動保存は同一ブラウザ・同一端末で更新や再起動から作業を復元するためのブラウザ内snapshotとして、用途と状態を分離する。
+- 意味的Project Stateが変更された後、1,000msのdebounceを経てIndexedDBへ保存する。`beforeunload`だけには依存せず、連続操作では最後のProject snapshotを保存する。
+- 起動時は自動保存の有無を確認し、正式保存と共通のJSON shape、default hydration、runtime validation、安全性のsemantic validationを通過した場合だけProjectをatomicに復元する。列bindingやError bindingの未設定は回復可能な作業途中状態として許可するが、壊れた参照、不正軸、不正書式、範囲外値は許可しない。
+- 自動保存対象は正式Project保存と同じDataset、stable ID、binding、chart、axis、style、layout等である。active / editing cell、IME状態、Selection、入力draft、pane幅、resize preview、export option、通知等のSession Stateは保存しない。
+- 復元不能な自動保存やIndexedDB障害はアプリ起動を妨げない。安全な初期Projectを維持して理由を通知し、不正recordは削除して起動のたびに同じ失敗を繰り返さない。
+- UIは「保存中...」「自動保存済み 時刻」「自動保存に失敗しました」を表示する。失敗しても編集中Projectを変更せず、正式Projectファイルとしての保存を案内する。
+- 正式Project読込の成功状態は直ちに新しい自動保存とする。正式保存は自動保存を削除しない。新規作成は確認後にProjectを初期化し、空Projectは正式serializerの有効Project条件を満たさないため、古い自動保存recordを削除する。
+- 新規作成時は旧Projectのdebounce timerをcancelし、開始済みwriteがあればその後に削除を直列化する。write世代が古いcallbackは無視し、待機時間経過後やF5で旧Projectが復活してはならない。
+- 自動保存は端末ブラウザ内だけで完結し、サーバーへ送信しない。Phase 3D-4では複数タブ同期・履歴・クラウド同期を実装せず、複数タブでは最後に保存したタブが優先される。

@@ -406,6 +406,19 @@ export function validateProjectSemantics(
   return issues
 }
 
+const RECOVERABLE_INCOMPLETE_PROJECT_ISSUES = new Set([
+  'binding.required',
+  'errorBar.required',
+])
+
+export function validateProjectForRecovery(
+  project: ProjectState,
+): ValidationIssue[] {
+  return validateProjectSemantics(project).filter(
+    (candidate) => !RECOVERABLE_INCOMPLETE_PROJECT_ISSUES.has(candidate.code),
+  )
+}
+
 export function getProjectWarnings(project: ProjectState): ValidationIssue[] {
   if (project.chart.type !== 'bar') return []
   const valueDimension =
