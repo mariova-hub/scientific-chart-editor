@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -15,6 +16,7 @@ import {
   exportPlotlyImage,
   purgePlotlyChart,
   renderPlotlyChart,
+  resetPlotlyView,
 } from '../../renderer/plotly/plotlyRenderer'
 
 export interface ChartCanvasHandle {
@@ -43,6 +45,17 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
       startY: number
       startSize: ChartSize
     } | null>(null)
+
+    const handleViewReset = useCallback(async () => {
+      const element = chartElementRef.current
+      if (!element) return
+      try {
+        await resetPlotlyView(element, project)
+        setRenderError(null)
+      } catch {
+        setRenderError('グラフの表示をリセットできませんでした。')
+      }
+    }, [project])
 
     useEffect(() => {
       if (!dragRef.current) setPreviewSize(project.chart.size)
@@ -124,6 +137,20 @@ export const ChartCanvas = forwardRef<ChartCanvasHandle, ChartCanvasProps>(
           <span className="size-badge">
             {project.chart.size.widthPx} × {project.chart.size.heightPx}px
           </span>
+        </div>
+        <div className="chart-interaction-bar">
+          <span className="chart-interaction-hint">
+            ドラッグで拡大
+            <span aria-hidden="true">｜</span>
+            ダブルクリックで元に戻す
+          </span>
+          <button
+            type="button"
+            className="button button-secondary chart-reset-button"
+            onClick={() => void handleViewReset()}
+          >
+            表示をリセット
+          </button>
         </div>
         <div className="chart-viewport" onPointerDown={onSelectChart}>
           <div

@@ -866,3 +866,7 @@ value:
 ## 29. Phase 3D-6 Scroll Interactionの非保存契約
 
 `scrollZoom: false`はRenderer Adapterの固定interaction policyであり、Project JSONへfieldを追加しない。旧Projectを含むすべての`schemaVersion: "0.1"`ファイルへ読込後に同じpolicyを適用し、Axis Model、autosave record、formal save snapshot、PNG／SVGの意味状態を変更しない。
+
+## 30. Phase 3D-7 Temporary Zoomの非保存契約
+
+Drag Zoom range、Zoom有無、Reset履歴はPlotly element内のtemporary viewであり、Project JSONとautosave recordへ保存しない。Formal Save／Loadとstartup restoreはAxis Modelだけを復元する。ダブルクリックと「表示をリセット」は現在Projectから正式axis layoutを再生成するRenderer操作で、`schemaVersion: "0.1"`、Axis field、migration、runtime validationを変更しない。PNG／SVGもtemporary viewを参照しない。

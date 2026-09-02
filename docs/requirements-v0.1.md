@@ -454,3 +454,10 @@ Phase 3DはPNG出力と軸文字配置の仕上げに限定し、JPEG / PDF、�
 - Plotlyのscroll zoomは全グラフ種類で常に無効とし、グラフ上のmouse wheel／trackpad scrollは通常のpage scrollを優先する。
 - 軸範囲の正規変更経路はAxis Format Paneの最小値・最大値とし、wheel操作はProject State、autosave、dirty stateを変更しない。
 - scroll zoom可否はアプリ全体の固定interaction policyであり、Project保存対象やユーザー設定にはしない。
+
+## 25. Phase 3D-7で確定したDrag Zoom復帰要件
+
+- Drag Zoomは便利な一時表示として維持し、グラフ付近へ「ドラッグで拡大｜ダブルクリックで元に戻す」と「表示をリセット」を常時提示する。
+- ダブルクリックと「表示をリセット」は同じ結果とし、現在のAxis Modelが固定rangeならそのrange、AutoならAuto表示へ戻す。Axis ModelをAutoへ変更する操作ではない。
+- 一時Zoomと表示リセットはProject State、Selection、autosave、formal dirty stateへ影響させず、Project JSONへ保存しない。PNG／SVGは一時ZoomではなくChart Modelから生成する正式Figureを出力する。
+- Phase 3D-6の`scrollZoom: false`と通常page scroll優先を維持する。

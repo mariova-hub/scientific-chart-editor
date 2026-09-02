@@ -845,3 +845,11 @@ Keyboard shortcutはpure resolverでCtrl / Cmd + SとShift併用を判定する�
 `renderer/plotly/plotlyAdapter`が生成する共通configで`scrollZoom: false`を固定する。Scatter、縦棒、横棒、画面描画、PNG／SVG用Figureは同じconfig生成経路を使用する。UI componentはwheel eventを捕捉・`preventDefault`せず、グラフ上でもbrowserの通常page scrollを維持する。
 
 wheel操作からProject actionをdispatchする経路は持たない。軸範囲変更はAxis Format Paneを正規経路とし、scroll interactionはProject、autosave、formal dirty snapshotから分離する。`responsive: false`、`displayModeBar: false`は維持し、`dragmode`と`doubleClick`の既存既定動作はPhase 3D-6では変更しない。
+
+## 30. Phase 3D-7 Temporary Plot ViewとReset境界
+
+Drag ZoomはPlotly element内部だけに存在するtemporary viewであり、Project Reducerへactionを送らない。`toPlotlyViewResetLayout(Project State)`は共通Adapterの正式axis layoutからX/Y軸だけを抽出し、`resetPlotlyView`が`Plotly.relayout`で画面へ適用する。固定range、Auto、category axisの判定は通常描画と同じAdapter経路を使う。
+
+Plotly既定の`doubleClick: "reset+autosize"`は操作回数によってinitial rangeとAuto rangeを切り替えるため、configでは`doubleClick: "reset"`を明示する。これによりダブルクリックは直近の正式描画rangeへ戻り、「表示をリセット」buttonのModel由来reset layoutと意味結果を統一する。Drag Zoomの既定drag modeと`scrollZoom: false`は維持する。
+
+ResetはProject、Selection、autosave、dirty snapshotを変更しない。export rendererはDOM上のtemporary viewを読まず、Projectから別の正式Figureを生成するため、PNG／SVGへZoomを混入させない。

@@ -334,6 +334,32 @@ h2 {
   margin-left: 16px;
 }
 
+.chart-interaction-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.chart-interaction-hint {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #526174;
+  font-size: 12px;
+}
+
+.chart-reset-button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
 .panel-heading {
   display: flex;
   align-items: flex-start;
@@ -1081,6 +1107,11 @@ legend {
   .workspace-grid,
   .format-panel {
     grid-template-columns: 1fr;
+  }
+
+  .chart-interaction-bar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .format-panel,

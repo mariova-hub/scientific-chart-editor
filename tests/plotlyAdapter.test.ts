@@ -16,7 +16,9 @@ describe('Plotly adapter', () => {
       },
     ],
   ])('disables scroll zoom for %s charts', (_name, createProject) => {
-    expect(toPlotlyFigure(createProject()).config.scrollZoom).toBe(false)
+    const config = toPlotlyFigure(createProject()).config
+    expect(config.scrollZoom).toBe(false)
+    expect(config.doubleClick).toBe('reset')
   })
 
   it('maps X, Y, and per-point symmetric Y errors', () => {

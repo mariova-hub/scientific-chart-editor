@@ -27,6 +27,11 @@ export interface PlotlyFigureOptions {
   transparentBackground?: boolean
 }
 
+export type PlotlyViewResetLayout = Pick<
+  Partial<Layout>,
+  'xaxis' | 'yaxis'
+>
+
 type PlotlyAxisWithLabelDistance = Partial<LayoutAxis> & {
   ticklabelstandoff: number
 }
@@ -401,6 +406,17 @@ export function toPlotlyFigure(
       displaylogo: false,
       displayModeBar: false,
       scrollZoom: false,
+      doubleClick: 'reset',
     },
+  }
+}
+
+export function toPlotlyViewResetLayout(
+  project: ProjectState,
+): PlotlyViewResetLayout {
+  const layout = toPlotlyFigure(project).layout
+  return {
+    xaxis: layout.xaxis,
+    yaxis: layout.yaxis,
   }
 }

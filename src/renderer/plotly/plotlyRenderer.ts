@@ -4,7 +4,10 @@ import {
   prepareImageExport,
   type ChartExportOptions,
 } from '../exportOptions'
-import { toPlotlyFigure } from './plotlyAdapter'
+import {
+  toPlotlyFigure,
+  toPlotlyViewResetLayout,
+} from './plotlyAdapter'
 
 export async function renderPlotlyChart(
   element: HTMLDivElement,
@@ -16,6 +19,13 @@ export async function renderPlotlyChart(
 
 export function purgePlotlyChart(element: HTMLDivElement): void {
   Plotly.purge(element)
+}
+
+export async function resetPlotlyView(
+  element: HTMLDivElement,
+  project: ProjectState,
+): Promise<void> {
+  await Plotly.relayout(element, toPlotlyViewResetLayout(project))
 }
 
 export async function exportPlotlyImage(
