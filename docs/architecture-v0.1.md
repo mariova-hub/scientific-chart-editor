@@ -839,3 +839,9 @@ writeは`close()`成功後だけformal statusを`保存しました`へ進める
 API非対応ではdownloadとfile inputを利用し、上書き可能とは表示しない。fallback保存後の同一Sessionではfile nameと正式snapshotを保持するがhandleはnullのため、次回保存もdownloadとなる。F5後は保存先を再指定する。
 
 Keyboard shortcutはpure resolverでCtrl / Cmd + SとShift併用を判定する。composition中、Alt併用、S以外は処理せず、valid Projectだけ正式保存handlerへ渡す。
+
+## 29. Phase 3D-6 Renderer Interaction Policy
+
+`renderer/plotly/plotlyAdapter`が生成する共通configで`scrollZoom: false`を固定する。Scatter、縦棒、横棒、画面描画、PNG／SVG用Figureは同じconfig生成経路を使用する。UI componentはwheel eventを捕捉・`preventDefault`せず、グラフ上でもbrowserの通常page scrollを維持する。
+
+wheel操作からProject actionをdispatchする経路は持たない。軸範囲変更はAxis Format Paneを正規経路とし、scroll interactionはProject、autosave、formal dirty snapshotから分離する。`responsive: false`、`displayModeBar: false`は維持し、`dragmode`と`doubleClick`の既存既定動作はPhase 3D-6では変更しない。

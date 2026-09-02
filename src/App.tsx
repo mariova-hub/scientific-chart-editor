@@ -538,7 +538,7 @@ function App() {
               <h1>Project workspace</h1>
             </div>
           </div>
-          <span className="phase-badge">v0.1 · Phase 3D-5</span>
+          <span className="phase-badge">v0.1 · Phase 3D-6</span>
         </header>
         <section className="startup-restore" role="status" aria-live="polite">
           前回の作業を確認しています...
@@ -559,7 +559,7 @@ function App() {
             <h1>Project workspace</h1>
           </div>
         </div>
-        <span className="phase-badge">v0.1 · Phase 3D-5</span>
+        <span className="phase-badge">v0.1 · Phase 3D-6</span>
       </header>
 
       <Toolbar

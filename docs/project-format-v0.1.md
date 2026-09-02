@@ -862,3 +862,7 @@ value:
 - permissionが`prompt`ならrecordを維持し、ユーザーが次に保存した時だけ`requestPermission`を呼ぶ。`denied`またはquery失敗はrecordを破棄する。
 - fallback downloadは推奨名`scientific-chart.scientific-chart.json`を用いる。File System pickerは同名をsuggestし、JSON filterを使う。handle nameはSession表示だけに利用する。
 - File handle、dirty、shortcut、fallback方式の違いによってProject writer、migration、backward compatibilityを変更しない。
+
+## 29. Phase 3D-6 Scroll Interactionの非保存契約
+
+`scrollZoom: false`はRenderer Adapterの固定interaction policyであり、Project JSONへfieldを追加しない。旧Projectを含むすべての`schemaVersion: "0.1"`ファイルへ読込後に同じpolicyを適用し、Axis Model、autosave record、formal save snapshot、PNG／SVGの意味状態を変更しない。

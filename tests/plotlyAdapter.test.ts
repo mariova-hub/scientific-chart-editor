@@ -4,6 +4,21 @@ import { projectReducer } from '../src/state/projectReducer'
 import { sampleBarProject, sampleProject } from './helpers'
 
 describe('Plotly adapter', () => {
+  it.each([
+    ['scatter', () => sampleProject()],
+    ['vertical bar', () => sampleBarProject()],
+    [
+      'horizontal bar',
+      () => {
+        const project = sampleBarProject()
+        project.chart.bar.orientation = 'horizontal'
+        return project
+      },
+    ],
+  ])('disables scroll zoom for %s charts', (_name, createProject) => {
+    expect(toPlotlyFigure(createProject()).config.scrollZoom).toBe(false)
+  })
+
   it('maps X, Y, and per-point symmetric Y errors', () => {
     const figure = toPlotlyFigure(sampleProject())
     expect(figure.data[0]).toMatchObject({

@@ -448,3 +448,9 @@ Phase 3DはPNG出力と軸文字配置の仕上げに限定し、JPEG / PDF、�
 - API非対応環境では保存／名前を付けて保存をBlob download、開くをfile inputへfallbackする。擬似上書きは行わず、UIで上書き非対応を明示する。
 - Ctrl / Cmd + Sは保存、Ctrl / Cmd + Shift + Sは名前を付けて保存とし、ブラウザ標準ページ保存を抑止する。IME composition中は処理しない。
 - File System Access APIは利用者がpickerで選択したfileだけを扱い、Projectや実験データをサーバーへ送信しない。
+
+## 24. Phase 3D-6で確定したグラフ操作要件
+
+- Plotlyのscroll zoomは全グラフ種類で常に無効とし、グラフ上のmouse wheel／trackpad scrollは通常のpage scrollを優先する。
+- 軸範囲の正規変更経路はAxis Format Paneの最小値・最大値とし、wheel操作はProject State、autosave、dirty stateを変更しない。
+- scroll zoom可否はアプリ全体の固定interaction policyであり、Project保存対象やユーザー設定にはしない。

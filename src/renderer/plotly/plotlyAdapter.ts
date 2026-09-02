@@ -400,7 +400,7 @@ export function toPlotlyFigure(
       responsive: false,
       displaylogo: false,
       displayModeBar: false,
-      scrollZoom: true,
+      scrollZoom: false,
     },
   }
 }
