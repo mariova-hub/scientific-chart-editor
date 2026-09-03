@@ -2,6 +2,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type ClipboardEvent,
   type KeyboardEvent,
   type MouseEvent,
 } from 'react'
@@ -16,6 +17,7 @@ import {
   cellAddress,
   type ActiveCell,
 } from '../../data/grid/pasteRange'
+import { handleGridPaste } from '../../data/grid/pasteRouting'
 import {
   formatCategoryHeaderRange,
   formatDataRowLabel,
@@ -286,6 +288,21 @@ export function DataGrid({
     onFocus: () => setActiveCell(cell),
     onKeyDown: (event: KeyboardEvent<HTMLElement>) =>
       handleCellKeyDown(event, cell),
+    onPaste: (event: ClipboardEvent<HTMLElement>) => {
+      handleGridPaste({
+        eventTarget: event.target,
+        activeElement: document.activeElement,
+        gridContains: (target) =>
+          target instanceof Node && Boolean(gridRef.current?.contains(target)),
+        cellEditMode: Boolean(editSession),
+        readPlainText: () =>
+          event.clipboardData.types.includes('text/plain')
+            ? event.clipboardData.getData('text/plain')
+            : null,
+        preventDefault: () => event.preventDefault(),
+        pasteRange: (source) => onPasteRange(cell, source),
+      })
+    },
   })
 
   const editorFor = (cell: ActiveCell) => {
@@ -308,7 +325,6 @@ export function DataGrid({
         onCompositionEnd={() => {
           compositionActive.current = false
         }}
-        onPaste={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           event.stopPropagation()
           if (
@@ -360,16 +376,7 @@ export function DataGrid({
         <span>直接入力・Delete / Backspace・Ctrl+V（Macは⌘V）</span>
       </div>
 
-      <div
-        className="table-scroll"
-        ref={gridRef}
-        onPaste={(event) => {
-          if (editSession) return
-          if (!event.clipboardData.types.includes('text/plain')) return
-          event.preventDefault()
-          onPasteRange(activeCell, event.clipboardData.getData('text/plain'))
-        }}
-      >
+      <div className="table-scroll" ref={gridRef}>
         <table className="data-table" role="grid" aria-label="編集可能な表データ">
           <thead>
             <tr className="column-letter-row" aria-hidden="true">
