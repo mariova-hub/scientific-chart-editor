@@ -17,7 +17,10 @@ import {
   cellAddress,
   type ActiveCell,
 } from '../../data/grid/pasteRange'
-import { handleGridPaste } from '../../data/grid/pasteRouting'
+import {
+  handleGridCopy,
+  handleGridPaste,
+} from '../../data/grid/pasteRouting'
 import {
   formatCategoryHeaderRange,
   formatDataRowLabel,
@@ -301,6 +304,19 @@ export function DataGrid({
             : null,
         preventDefault: () => event.preventDefault(),
         pasteRange: (source) => onPasteRange(cell, source),
+      })
+    },
+    onCopy: (event: ClipboardEvent<HTMLElement>) => {
+      handleGridCopy({
+        eventTarget: event.target,
+        activeElement: document.activeElement,
+        gridContains: (target) =>
+          target instanceof Node && Boolean(gridRef.current?.contains(target)),
+        cellEditMode: Boolean(editSession),
+        source: readGridCellText(dataset, cell),
+        writePlainText: (source) =>
+          event.clipboardData.setData('text/plain', source),
+        preventDefault: () => event.preventDefault(),
       })
     },
   })

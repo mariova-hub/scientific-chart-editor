@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyCellEdit,
   clearGridCell,
+  readGridCellText,
 } from '../src/data/grid/editCell'
 import type { ActiveCell } from '../src/data/grid/pasteRange'
 import { resolveBarSeries } from '../src/model/dataBinding'
@@ -37,6 +38,26 @@ function valueAt(dataset: DatasetModel, rowIndex: number, columnIndex: number) {
     ? column.name
     : dataset.rows[rowIndex - 1].cells[column.id]
 }
+
+describe('active cell copy text', () => {
+  it('reads a header name', () => {
+    const dataset = sampleBarProject().datasets[0]
+    expect(readGridCellText(dataset, { rowIndex: 0, columnIndex: 1 })).toBe('平均')
+  })
+
+  it('converts number and string cells to text', () => {
+    const dataset = sampleBarProject().datasets[0]
+    expect(readGridCellText(dataset, { rowIndex: 1, columnIndex: 0 })).toBe('3')
+    dataset.rows[0].cells[dataset.columns[0].id] = '試験管3'
+    expect(readGridCellText(dataset, { rowIndex: 1, columnIndex: 0 })).toBe('試験管3')
+  })
+
+  it('converts a null cell to empty text', () => {
+    const dataset = sampleBarProject().datasets[0]
+    dataset.rows[0].cells[dataset.columns[0].id] = null
+    expect(readGridCellText(dataset, { rowIndex: 1, columnIndex: 0 })).toBe('')
+  })
+})
 
 describe('direct cell edit commit', () => {
   it.each([

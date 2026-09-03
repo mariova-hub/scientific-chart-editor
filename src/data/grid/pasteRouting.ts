@@ -17,6 +17,12 @@ interface GridPasteHandlingContext extends PasteRoutingContext {
   pasteRange: (source: string) => void
 }
 
+interface GridCopyHandlingContext extends PasteRoutingContext {
+  source: string
+  writePlainText: (source: string) => void
+  preventDefault: () => void
+}
+
 const NATIVE_PASTE_TARGETS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 function asElementLike(target: unknown): ElementLike | null {
@@ -76,5 +82,22 @@ export function handleGridPaste({
 
   preventDefault()
   pasteRange(source)
+  return true
+}
+
+/**
+ * Copies one focused Grid cell. Native editing targets return without changing
+ * either the clipboard or the copy event, preserving partial-text selection.
+ */
+export function handleGridCopy({
+  source,
+  writePlainText,
+  preventDefault,
+  ...routingContext
+}: GridCopyHandlingContext): boolean {
+  if (!shouldRoutePasteToGrid(routingContext)) return false
+
+  writePlainText(source)
+  preventDefault()
   return true
 }
